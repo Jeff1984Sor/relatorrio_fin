@@ -1,0 +1,30 @@
+[Unit]
+Description=Relatorio Fin - Web (Next.js)
+After=network-online.target relatorio-fin-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/home/deploy/apps/relatorio_fin/frontend
+
+Environment="NODE_ENV=production"
+Environment="PORT=3007"
+Environment="BACKEND_URL=http://127.0.0.1:8077"
+
+ExecStart=/usr/bin/npm run start
+
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=relatorio-fin-web
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
