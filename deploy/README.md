@@ -1,21 +1,26 @@
 # Deploy no servidor (Ubuntu 24.04)
 
+Todos os comandos rodam como `root`, em `/root/apps/relatorio_fin`.
+
+> Rodar como root deixa o app com privilégio total na máquina, e ele recebe upload
+> de arquivo de fora. Se um dia quiser trocar para um usuário sem privilégio, é
+> substituir `root` por `deploy` e `/root` por `/home/deploy` nos dois arquivos
+> `.service`, e `chown -R deploy:deploy` na pasta do projeto.
+
 O servidor já roda outros apps, então **confira as portas antes de subir**. O padrão
 aqui é `8077` (API, só local) e `3007` (web). Se alguma estiver ocupada, troque nos
 dois lugares indicados no passo 5.
 
-Todos os comandos rodam como o usuário `deploy`, exceto os marcados com `sudo`.
-
 ## 1. Conferir as portas
 
 ```bash
-sudo ss -tulpn | grep -E ':(3007|8077)\s' || echo "portas 3007 e 8077 livres"
+ss -tulpn | grep -E ':(3007|8077)\s' || echo "portas 3007 e 8077 livres"
 ```
 
 Sem saída do `grep` = livre. Para ver tudo que já está ocupado:
 
 ```bash
-sudo ss -tulpn | grep LISTEN
+ss -tulpn | grep LISTEN
 ```
 
 ## 2. Conferir os pré-requisitos
@@ -29,21 +34,20 @@ npm --version
 Se o Node for antigo:
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt install -y nodejs
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt install -y nodejs
 ```
 
 Se faltar o venv do Python:
 
 ```bash
-sudo apt install -y python3-venv python3-pip
+apt install -y python3-venv python3-pip
 ```
 
 ## 3. Trazer o código
 
 ```bash
-su - deploy
-mkdir -p ~/apps && cd ~/apps
+mkdir -p /root/apps && cd /root/apps
 git clone https://github.com/Jeff1984Sor/relatorrio_fin.git relatorio_fin
 cd relatorio_fin
 ```
@@ -65,11 +69,11 @@ Se você trocou alguma porta, ajuste antes: `--port` em `relatorio-fin-api.servi
 `PORT=` / `BACKEND_URL=` em `relatorio-fin-web.service`.
 
 ```bash
-sudo cp ~/apps/relatorio_fin/deploy/relatorio-fin-api.service /etc/systemd/system/
-sudo cp ~/apps/relatorio_fin/deploy/relatorio-fin-web.service /etc/systemd/system/
+cp /root/apps/relatorio_fin/deploy/relatorio-fin-api.service /etc/systemd/system/
+cp /root/apps/relatorio_fin/deploy/relatorio-fin-web.service /etc/systemd/system/
 
-sudo systemctl daemon-reload
-sudo systemctl enable --now relatorio-fin-api relatorio-fin-web
+systemctl daemon-reload
+systemctl enable --now relatorio-fin-api relatorio-fin-web
 ```
 
 O `enable` é o que garante que os dois voltem sozinhos quando o servidor for
@@ -78,8 +82,8 @@ desligado e ligado de novo. O `Restart=always` cobre o caso de o processo morrer
 ## 6. Conferir se subiu
 
 ```bash
-sudo systemctl status relatorio-fin-api --no-pager
-sudo systemctl status relatorio-fin-web --no-pager
+systemctl status relatorio-fin-api --no-pager
+systemctl status relatorio-fin-web --no-pager
 
 curl -s http://127.0.0.1:8077/api/saude     # {"status":"ok"}
 curl -sI http://127.0.0.1:3007 | head -1    # HTTP/1.1 200 OK
@@ -90,23 +94,23 @@ Acesse no navegador: `http://SEU_IP:3007`
 Se não abrir de fora, libere a porta no firewall:
 
 ```bash
-sudo ufw status
-sudo ufw allow 3007/tcp
+ufw status
+ufw allow 3007/tcp
 ```
 
 ## Comandos do dia a dia
 
 ```bash
 # Ver o log ao vivo
-sudo journalctl -u relatorio-fin-api -f
-sudo journalctl -u relatorio-fin-web -f
+journalctl -u relatorio-fin-api -f
+journalctl -u relatorio-fin-web -f
 
 # Reiniciar
-sudo systemctl restart relatorio-fin-api relatorio-fin-web
+systemctl restart relatorio-fin-api relatorio-fin-web
 
 # Atualizar para a última versão do código
-cd ~/apps/relatorio_fin && git pull && bash deploy/deploy.sh
-sudo systemctl restart relatorio-fin-api relatorio-fin-web
+cd /root/apps/relatorio_fin && git pull && bash deploy/deploy.sh
+systemctl restart relatorio-fin-api relatorio-fin-web
 ```
 
 ## Backup
@@ -114,7 +118,7 @@ sudo systemctl restart relatorio-fin-api relatorio-fin-web
 Tudo que importa está em um diretório só:
 
 ```bash
-tar czf ~/backup-relatorio-fin-$(date +%F).tar.gz -C ~/apps/relatorio_fin/backend data
+tar czf /root/backup-relatorio-fin-$(date +%F).tar.gz -C /root/apps/relatorio_fin/backend data
 ```
 
 `data/relatorio_fin.db` é o banco e `data/arquivos/` são os `.xlsx` gerados.
@@ -142,19 +146,19 @@ server {
 ```
 
 ```bash
-sudo nano /etc/nginx/sites-available/relatorio-fin
-sudo ln -s /etc/nginx/sites-available/relatorio-fin /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d relatorio.seudominio.com.br   # HTTPS
+nano /etc/nginx/sites-available/relatorio-fin
+ln -s /etc/nginx/sites-available/relatorio-fin /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
+certbot --nginx -d relatorio.seudominio.com.br   # HTTPS
 ```
 
-Com nginx na frente, feche a 3007 no firewall (`sudo ufw delete allow 3007/tcp`).
+Com nginx na frente, feche a 3007 no firewall (`ufw delete allow 3007/tcp`).
 
 ## Se der problema
 
 | Sintoma | O que olhar |
 |---|---|
-| Serviço não sobe | `sudo journalctl -u relatorio-fin-api -n 50 --no-pager` |
-| `Address already in use` | Outra app pegou a porta: `sudo ss -tulpn \| grep 8077` e troque a porta |
+| Serviço não sobe | `journalctl -u relatorio-fin-api -n 50 --no-pager` |
+| `Address already in use` | Outra app pegou a porta: `ss -tulpn \| grep 8077` e troque a porta |
 | Web abre mas a API dá erro | `BACKEND_URL` no `.service` tem que apontar para a porta real da API |
-| `permission denied` no banco | `chown -R deploy:deploy ~/apps/relatorio_fin/backend/data` |
+| Build do Next falha | Node abaixo de 20.9 — ver passo 2 |

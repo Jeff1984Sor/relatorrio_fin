@@ -5,9 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=deploy
-Group=deploy
-WorkingDirectory=/home/deploy/apps/relatorio_fin/frontend
+User=root
+Group=root
+WorkingDirectory=/root/apps/relatorio_fin/frontend
 
 Environment="NODE_ENV=production"
 Environment="PORT=3007"

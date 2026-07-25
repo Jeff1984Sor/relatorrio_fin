@@ -5,17 +5,17 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=deploy
-Group=deploy
-WorkingDirectory=/home/deploy/apps/relatorio_fin/backend
+User=root
+Group=root
+WorkingDirectory=/root/apps/relatorio_fin/backend
 
-Environment="DATA_DIR=/home/deploy/apps/relatorio_fin/backend/data"
-Environment="STORAGE_DIR=/home/deploy/apps/relatorio_fin/backend/data/arquivos"
-Environment="DATABASE_URL=sqlite:////home/deploy/apps/relatorio_fin/backend/data/relatorio_fin.db"
+Environment="DATA_DIR=/root/apps/relatorio_fin/backend/data"
+Environment="STORAGE_DIR=/root/apps/relatorio_fin/backend/data/arquivos"
+Environment="DATABASE_URL=sqlite:////root/apps/relatorio_fin/backend/data/relatorio_fin.db"
 Environment="MAX_UPLOAD_MB=15"
 Environment="USUARIO_PADRAO=escritorio"
 
-ExecStart=/home/deploy/apps/relatorio_fin/backend/.venv/bin/uvicorn app.main:app \
+ExecStart=/root/apps/relatorio_fin/backend/.venv/bin/uvicorn app.main:app \
     --host 127.0.0.1 --port 8077 --workers 2
 
 Restart=always
