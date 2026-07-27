@@ -120,6 +120,38 @@ def construir_sem_subcategoria(caminho: Path) -> Path:
     return caminho
 
 
+def construir_categoria_concatenada(caminho: Path) -> Path:
+    """Variante como o sistema de gestão exporta de verdade: `CATEGORIA:SUBCATEGORIA`
+    numa coluna só, sem coluna de subcategoria."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Analítico"
+
+    colunas = ["Data de Pagamento", "Fornecedor", "Valor Líquido", "Categoria"]
+    for coluna, titulo in enumerate(colunas, start=1):
+        ws.cell(row=1, column=coluna, value=titulo)
+
+    dados = [
+        ("05/06/2026", "Equipe", "(R$ 96.700,00)", "DESPESA COM PESSOAL:REMUNERAÇÃO FIXA"),
+        ("06/06/2026", "Equipe", "(R$ 2.761,89)", "DESPESA COM PESSOAL:REMUNERAÇÃO VARIÁVEL"),
+        ("07/06/2026", "Plano", "(R$ 300,00)", "DESPESA COM PESSOAL:BENEFÍCIOS"),
+        ("08/06/2026", "Revista", "(R$ 455,32)", "DESPESAS ADMINISTRATIVAS:ASSINATURAS"),
+        ("09/06/2026", "OAB", "(R$ 735,80)", "DESPESAS ADMINISTRATIVAS:ASSOCIAÇÕES"),
+        # Sem `:` — categoria sem subcategoria, tem que continuar funcionando.
+        ("10/06/2026", "Cartório", "(R$ 1.624,66)", "CERTIDÕES"),
+        # Erro de cadastro real: dois níveis colados com `;` no meio.
+        ("11/06/2026", "BPO", "(R$ 4.953,15)",
+         "DESPESAS ADMINISTRATIVAS:BPO FINANCEIRO; DESPESAS ADMINISTRATIVAS:CONTABILIDADE"),
+    ]
+    for indice, linha in enumerate(dados, start=2):
+        for coluna, valor in enumerate(linha, start=1):
+            ws.cell(row=indice, column=coluna, value=valor)
+
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(caminho)
+    return caminho
+
+
 if __name__ == "__main__":  # pragma: no cover
     destino = Path(sys.argv[1] if len(sys.argv) > 1 else "tests/fixtures/base-suja.xlsx")
     print(construir(destino))

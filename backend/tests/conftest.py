@@ -28,3 +28,10 @@ def base_sem_subcategoria(tmp_path_factory) -> bytes:
     destino = tmp_path_factory.mktemp("fixtures") / "sem-subcategoria.xlsx"
     fixture_builder.construir_sem_subcategoria(destino)
     return destino.read_bytes()
+
+
+@pytest.fixture(scope="session")
+def base_categoria_concatenada(tmp_path_factory) -> bytes:
+    destino = tmp_path_factory.mktemp("fixtures") / "categoria-concatenada.xlsx"
+    fixture_builder.construir_categoria_concatenada(destino)
+    return destino.read_bytes()

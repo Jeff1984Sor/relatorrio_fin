@@ -105,6 +105,27 @@ def _rotulo_mais_frequente(contador: Counter[str]) -> str:
     return candidatos[0]
 
 
+def separar_categoria(texto: str) -> tuple[str, str]:
+    """Separa `CATEGORIA:SUBCATEGORIA` numa célula só.
+
+    O sistema de gestão exporta os dois níveis concatenados por `:` — por exemplo
+    `DESPESA COM PESSOAL:REMUNERAÇÃO FIXA`. Sem separar, cada combinação viraria
+    uma categoria própria e não haveria consolidação nenhuma.
+
+    Corta no primeiro `:` apenas. O que vier depois é subcategoria inteira, mesmo
+    que contenha outro `:` — caso de erro de cadastro na origem, que o aviso de
+    conferência já sinaliza.
+    """
+    if ":" not in texto:
+        return texto, ""
+    categoria, _, subcategoria = texto.partition(":")
+    categoria, subcategoria = categoria.strip(), subcategoria.strip()
+    # Um `:` solto na ponta não deve zerar a categoria.
+    if not categoria:
+        return texto, ""
+    return categoria, subcategoria
+
+
 def _celula(linha: list[object], indice: int | None) -> object:
     if indice is None or indice < 0 or indice >= len(linha):
         return None
@@ -134,6 +155,12 @@ def extrair_linhas(
         categoria_bruta = texto_celula(_celula(linha, mapeamento.categoria))
         subcategoria_bruta = texto_celula(_celula(linha, mapeamento.subcategoria))
         valor_bruto = _celula(linha, mapeamento.valor)
+
+        # A coluna de categoria pode trazer os dois níveis juntos. A subcategoria
+        # da própria planilha, quando existe, tem prioridade sobre a separação.
+        categoria_bruta, sub_embutida = separar_categoria(categoria_bruta)
+        subcategoria_bruta = subcategoria_bruta or sub_embutida
+
         tem_texto = bool(categoria_bruta or subcategoria_bruta)
 
         # Linha totalmente vazia (rodapé, separador) é ignorada em silêncio.

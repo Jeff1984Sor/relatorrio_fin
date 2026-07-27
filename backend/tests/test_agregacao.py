@@ -1,11 +1,14 @@
 from decimal import Decimal
 
+import pytest
+
 from app.services.agregacao import (
     ORDEM_VALOR,
     SEM_CATEGORIA,
     SEM_SUBCATEGORIA,
     extrair_linhas,
     montar_resumo,
+    separar_categoria,
 )
 from app.services.inspecao import inspecionar
 from app.services.leitura import ler_linhas
@@ -113,6 +116,52 @@ def test_periodo_vem_das_datas_de_pagamento(base_suja):
     resumo = _processar(base_suja)
     assert resumo.periodo_inicio.isoformat() == "2026-01-05"
     assert resumo.periodo_fim.isoformat() == "2026-01-16"
+
+
+@pytest.mark.parametrize(
+    "texto,esperado",
+    [
+        ("DESPESA COM PESSOAL:REMUNERAÇÃO FIXA", ("DESPESA COM PESSOAL", "REMUNERAÇÃO FIXA")),
+        ("DESPESAS ADMINISTRATIVAS: ASSINATURAS", ("DESPESAS ADMINISTRATIVAS", "ASSINATURAS")),
+        ("CERTIDÕES", ("CERTIDÕES", "")),
+        ("", ("", "")),
+        # Corta só no primeiro `:`; o resto fica inteiro na subcategoria.
+        ("A:B:C", ("A", "B:C")),
+        # `:` na ponta não pode zerar a categoria.
+        (":SEM CATEGORIA", (":SEM CATEGORIA", "")),
+        ("DESPESAS FINANCEIRAS:", ("DESPESAS FINANCEIRAS", "")),
+    ],
+)
+def test_separar_categoria(texto, esperado):
+    assert separar_categoria(texto) == esperado
+
+
+def test_categoria_concatenada_consolida_por_categoria(base_categoria_concatenada):
+    """O bug real: `CATEGORIA:SUBCATEGORIA` numa coluna só não consolidava."""
+    resumo = _processar(base_categoria_concatenada)
+
+    rotulos = [c.rotulo for c in resumo.categorias]
+    assert rotulos == ["CERTIDÕES", "DESPESA COM PESSOAL", "DESPESAS ADMINISTRATIVAS"]
+
+    pessoal = next(c for c in resumo.categorias if c.chave == "despesa com pessoal")
+    assert pessoal.qtd == 3
+    assert pessoal.total == Decimal("-99761.89")
+    assert [s.rotulo for s in pessoal.subcategorias] == [
+        "BENEFÍCIOS",
+        "REMUNERAÇÃO FIXA",
+        "REMUNERAÇÃO VARIÁVEL",
+    ]
+
+    # Sem `:` continua virando categoria sem subcategoria.
+    certidoes = next(c for c in resumo.categorias if c.chave == "certidoes")
+    assert [s.rotulo for s in certidoes.subcategorias] == [SEM_SUBCATEGORIA]
+
+
+def test_categoria_concatenada_mantem_o_total_e_o_aviso(base_categoria_concatenada):
+    resumo = _processar(base_categoria_concatenada)
+    assert resumo.total_geral == Decimal("-107530.82")
+    assert resumo.qtd_lancamentos == 7
+    assert "subcategoria_com_ponto_virgula" in {a.tipo for a in resumo.avisos}
 
 
 def test_planilha_sem_subcategoria_agrupa_em_sem_subcategoria(base_sem_subcategoria):
