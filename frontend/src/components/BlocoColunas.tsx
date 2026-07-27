@@ -10,29 +10,19 @@ const CAMPOS: { campo: CampoMapeamento; rotulo: string; obrigatorio: boolean }[]
   { campo: "fornecedor", rotulo: "Fornecedor", obrigatorio: false },
 ];
 
-export type Preferencias = {
-  unificar: boolean;
-  positivo: boolean;
-  ordem: "alfabetica" | "valor";
-};
-
 type Props = {
   inspecao: Inspecao;
   mapeamento: Mapeamento;
-  preferencias: Preferencias;
   processando: boolean;
   onMapeamento: (mapeamento: Mapeamento) => void;
-  onPreferencias: (preferencias: Preferencias) => void;
   onProcessar: () => void;
 };
 
 export default function BlocoColunas({
   inspecao,
   mapeamento,
-  preferencias,
   processando,
   onMapeamento,
-  onPreferencias,
   onProcessar,
 }: Props) {
   return (
@@ -65,57 +55,10 @@ export default function BlocoColunas({
         ))}
       </div>
 
-      <fieldset className="space-y-3 border-t border-slate-200 pt-5">
-        <legend className="sr-only">Opções de consolidação</legend>
-
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={preferencias.unificar}
-            onChange={(e) => onPreferencias({ ...preferencias, unificar: e.target.checked })}
-            className="mt-0.5"
-          />
-          <span>
-            Unificar nomes escritos de formas diferentes
-            <span className="block text-xs text-slate-500">
-              &quot;Guias / Custas Judiciais&quot; e &quot;Guias/Custas Judiciais&quot; viram
-              uma linha só.
-            </span>
-          </span>
-        </label>
-
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={preferencias.positivo}
-            onChange={(e) => onPreferencias({ ...preferencias, positivo: e.target.checked })}
-            className="mt-0.5"
-          />
-          <span>
-            Mostrar valores como positivos
-            <span className="block text-xs text-slate-500">
-              Muda só a exibição e a planilha; o dado guardado continua o mesmo.
-            </span>
-          </span>
-        </label>
-
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-700">Ordenar por</span>
-          <select
-            value={preferencias.ordem}
-            onChange={(e) =>
-              onPreferencias({
-                ...preferencias,
-                ordem: e.target.value as Preferencias["ordem"],
-              })
-            }
-            className="rounded border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-900 focus:outline-none"
-          >
-            <option value="alfabetica">Ordem alfabética</option>
-            <option value="valor">Maior valor primeiro</option>
-          </select>
-        </label>
-      </fieldset>
+      <p className="border-t border-slate-200 pt-5 text-xs text-slate-500">
+        Nomes escritos de formas diferentes são sempre unificados — &quot;Guias / Custas
+        Judiciais&quot; e &quot;Guias/Custas Judiciais&quot; viram uma linha só.
+      </p>
 
       {inspecao.amostra.length > 0 && (
         <details className="text-sm">

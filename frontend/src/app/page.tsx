@@ -5,24 +5,17 @@ import { useState } from "react";
 
 import Avisos from "@/components/Avisos";
 import Bloco from "@/components/Bloco";
-import BlocoColunas, { type Preferencias } from "@/components/BlocoColunas";
+import BlocoColunas from "@/components/BlocoColunas";
 import Dropzone from "@/components/Dropzone";
 import TabelaResumo from "@/components/TabelaResumo";
 import { ErroApi, inspecionar, processar, urlDownload } from "@/lib/api";
 import { descreverPeriodo } from "@/lib/formato";
 import type { Inspecao, Mapeamento, Resumo } from "@/lib/tipos";
 
-const PREFERENCIAS_INICIAIS: Preferencias = {
-  unificar: true,
-  positivo: false,
-  ordem: "alfabetica",
-};
-
 export default function Pagina() {
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [inspecao, setInspecao] = useState<Inspecao | null>(null);
   const [mapeamento, setMapeamento] = useState<Mapeamento | null>(null);
-  const [preferencias, setPreferencias] = useState<Preferencias>(PREFERENCIAS_INICIAIS);
   const [resumo, setResumo] = useState<Resumo | null>(null);
 
   const [lendo, setLendo] = useState(false);
@@ -62,7 +55,6 @@ export default function Pagina() {
     try {
       const consolidado = await processar(arquivo, {
         aba: inspecao.aba,
-        ...preferencias,
         mapeamento: mapeamento as unknown as Record<string, number | null>,
         forcar,
       });
@@ -131,10 +123,8 @@ export default function Pagina() {
           <BlocoColunas
             inspecao={inspecao}
             mapeamento={mapeamento}
-            preferencias={preferencias}
             processando={processando}
             onMapeamento={setMapeamento}
-            onPreferencias={setPreferencias}
             onProcessar={() => aoProcessar(false)}
           />
         </Bloco>
@@ -146,7 +136,7 @@ export default function Pagina() {
           titulo="Resumo"
           descricao={`${descreverPeriodo(resumo.periodo_inicio, resumo.periodo_fim)} — ${resumo.qtd_lancamentos} lançamentos`}
         >
-          <TabelaResumo resumo={resumo} positivo={preferencias.positivo} />
+          <TabelaResumo resumo={resumo} positivo={false} />
           <Avisos avisos={resumo.avisos} />
           <div className="mt-6 flex flex-wrap gap-4">
             <a

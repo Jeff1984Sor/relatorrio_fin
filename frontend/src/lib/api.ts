@@ -60,9 +60,6 @@ export function inspecionar(arquivo: File, aba?: string): Promise<Inspecao> {
 
 export type OpcoesProcessamento = {
   aba?: string;
-  unificar: boolean;
-  positivo: boolean;
-  ordem: "alfabetica" | "valor";
   mapeamento: Record<string, number | null>;
   forcar?: boolean;
 };
@@ -71,9 +68,6 @@ export function processar(arquivo: File, opcoes: OpcoesProcessamento): Promise<R
   const dados = new FormData();
   dados.append("arquivo", arquivo);
   if (opcoes.aba) dados.append("aba", opcoes.aba);
-  dados.append("unificar", String(opcoes.unificar));
-  dados.append("positivo", String(opcoes.positivo));
-  dados.append("ordem", opcoes.ordem);
   dados.append("mapeamento", JSON.stringify(opcoes.mapeamento));
   if (opcoes.forcar) dados.append("forcar", "true");
   return enviar<Resumo>(`${BASE}/processar`, dados);

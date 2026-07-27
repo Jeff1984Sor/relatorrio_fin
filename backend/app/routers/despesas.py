@@ -17,7 +17,6 @@ from ..models import Processamento
 from ..services import inspecao, leitura, persistencia, planilha
 from ..services.agregacao import (
     ORDEM_ALFABETICA,
-    ORDEM_VALOR,
     Opcoes,
     SemColunaValor,
     extrair_linhas,
@@ -95,13 +94,14 @@ async def inspecionar_arquivo(
 async def processar_arquivo(
     arquivo: UploadFile = File(...),
     aba: str | None = Form(default=None),
-    unificar: bool = Form(default=True),
-    positivo: bool = Form(default=False),
-    ordem: str = Form(default=ORDEM_ALFABETICA),
     mapeamento: str | None = Form(default=None),
     forcar: bool = Form(default=False),
     db: Session = Depends(get_db),
 ) -> schemas.ResumoOut:
+    # Comportamento único: sempre unifica os nomes, sempre em ordem alfabética,
+    # sempre com o sinal da origem. Não há mais toggle na tela.
+    unificar, positivo, ordem = True, False, ORDEM_ALFABETICA
+
     try:
         conteudo = await _ler_upload(arquivo)
         linhas, _aba = leitura.ler_linhas(conteudo, arquivo.filename or "", aba)
@@ -120,9 +120,6 @@ async def processar_arquivo(
                     "processamento_id": anterior.id,
                 },
             )
-
-    if ordem not in (ORDEM_ALFABETICA, ORDEM_VALOR):
-        ordem = ORDEM_ALFABETICA
 
     cabecalho = inspecao.inspecionar(linhas)
     if cabecalho.indice < 0:
