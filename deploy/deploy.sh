@@ -18,12 +18,6 @@ fi
 "$BACKEND/.venv/bin/pip" install --upgrade pip --quiet
 "$BACKEND/.venv/bin/pip" install -r "$BACKEND/requirements.txt" --quiet
 
-echo "==> Backend: criando o banco SQLite e as pastas de dados"
-mkdir -p "$BACKEND/data/arquivos"
-(cd "$BACKEND" && DATA_DIR="$BACKEND/data" STORAGE_DIR="$BACKEND/data/arquivos" \
-  DATABASE_URL="sqlite:///$BACKEND/data/relatorio_fin.db" \
-  "$BACKEND/.venv/bin/python" -c "from app.database import criar_tabelas; criar_tabelas(); print('tabelas ok')")
-
 echo "==> Backend: testes"
 (cd "$BACKEND" && "$BACKEND/.venv/bin/python" -m pytest -q)
 

@@ -3,15 +3,10 @@
 import { useState } from "react";
 
 import { ehNegativo, formatarPercentual, formatarValor } from "@/lib/formato";
-import type { Resumo } from "@/lib/tipos";
-
-type Props = {
-  resumo: Resumo;
-  positivo: boolean;
-};
+import type { Categoria, Resumo } from "@/lib/tipos";
 
 /** Prévia em formato razão contábil: faixa de categoria clicável recolhe as subcategorias. */
-export default function TabelaResumo({ resumo, positivo }: Props) {
+export default function TabelaResumo({ resumo }: { resumo: Resumo }) {
   const [recolhidas, setRecolhidas] = useState<Set<string>>(new Set());
 
   function alternar(chave: string) {
@@ -35,24 +30,20 @@ export default function TabelaResumo({ resumo, positivo }: Props) {
           </tr>
         </thead>
         <tbody>
-          {resumo.categorias.map((categoria) => {
-            const recolhida = recolhidas.has(categoria.chave);
-            return (
-              <CorpoCategoria
-                key={categoria.chave}
-                categoria={categoria}
-                recolhida={recolhida}
-                positivo={positivo}
-                onAlternar={() => alternar(categoria.chave)}
-              />
-            );
-          })}
+          {resumo.categorias.map((categoria) => (
+            <CorpoCategoria
+              key={categoria.chave}
+              categoria={categoria}
+              recolhida={recolhidas.has(categoria.chave)}
+              onAlternar={() => alternar(categoria.chave)}
+            />
+          ))}
         </tbody>
         <tfoot className="bg-slate-800 text-white">
           <tr>
             <td className="px-4 py-2.5 font-semibold">TOTAL GERAL</td>
             <td className="numero px-4 py-2.5 text-right font-semibold">
-              {formatarValor(resumo.total_geral, positivo)}
+              {formatarValor(resumo.total_geral)}
             </td>
             <td className="numero px-4 py-2.5 text-right font-semibold">100,0%</td>
             <td className="numero px-4 py-2.5 text-right font-semibold">
@@ -68,12 +59,10 @@ export default function TabelaResumo({ resumo, positivo }: Props) {
 function CorpoCategoria({
   categoria,
   recolhida,
-  positivo,
   onAlternar,
 }: {
-  categoria: Resumo["categorias"][number];
+  categoria: Categoria;
   recolhida: boolean;
-  positivo: boolean;
   onAlternar: () => void;
 }) {
   return (
@@ -90,7 +79,7 @@ function CorpoCategoria({
             {categoria.rotulo}
           </button>
         </td>
-        <Valor bruto={categoria.total} positivo={positivo} destaque />
+        <Valor bruto={categoria.total} destaque />
         <td className="numero px-4 py-2 text-right font-semibold">
           {formatarPercentual(categoria.percentual)}
         </td>
@@ -101,7 +90,7 @@ function CorpoCategoria({
         categoria.subcategorias.map((sub) => (
           <tr key={sub.chave} className="border-t border-slate-100">
             <td className="py-1.5 pl-12 pr-4 text-slate-700">{sub.rotulo}</td>
-            <Valor bruto={sub.total} positivo={positivo} />
+            <Valor bruto={sub.total} />
             <td className="numero px-4 py-1.5 text-right text-slate-600">
               {formatarPercentual(sub.percentual)}
             </td>
@@ -112,23 +101,14 @@ function CorpoCategoria({
   );
 }
 
-function Valor({
-  bruto,
-  positivo,
-  destaque = false,
-}: {
-  bruto: string;
-  positivo: boolean;
-  destaque?: boolean;
-}) {
-  const negativo = ehNegativo(bruto, positivo);
+function Valor({ bruto, destaque = false }: { bruto: string; destaque?: boolean }) {
   return (
     <td
       className={`numero px-4 ${destaque ? "py-2 font-semibold" : "py-1.5"} text-right ${
-        negativo ? "text-negativo" : "text-slate-800"
+        ehNegativo(bruto) ? "text-negativo" : "text-slate-800"
       }`}
     >
-      {formatarValor(bruto, positivo)}
+      {formatarValor(bruto)}
     </td>
   );
 }

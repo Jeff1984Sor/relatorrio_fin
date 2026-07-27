@@ -5,8 +5,7 @@ __pycache__/
 venv/
 .pytest_cache/
 
-# Dados da aplicação (banco SQLite e planilhas geradas)
-backend/data/
+# Fixtures geradas pelos testes
 backend/tests/fixtures/
 
 # Node / Next

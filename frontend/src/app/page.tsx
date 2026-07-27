@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 
 import Avisos from "@/components/Avisos";
@@ -8,9 +7,13 @@ import Bloco from "@/components/Bloco";
 import BlocoColunas from "@/components/BlocoColunas";
 import Dropzone from "@/components/Dropzone";
 import TabelaResumo from "@/components/TabelaResumo";
-import { ErroApi, inspecionar, processar, urlDownload } from "@/lib/api";
+import { baixarXlsx, ErroApi, inspecionar, processar } from "@/lib/api";
 import { descreverPeriodo } from "@/lib/formato";
 import type { Inspecao, Mapeamento, Resumo } from "@/lib/tipos";
+
+function mensagem(excecao: unknown, padrao: string): string {
+  return excecao instanceof ErroApi ? excecao.message : padrao;
+}
 
 export default function Pagina() {
   const [arquivo, setArquivo] = useState<File | null>(null);
@@ -20,59 +23,61 @@ export default function Pagina() {
 
   const [lendo, setLendo] = useState(false);
   const [processando, setProcessando] = useState(false);
+  const [baixando, setBaixando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [duplicadoId, setDuplicadoId] = useState<number | null>(null);
 
-  function limpar() {
+  async function aoEscolherArquivo(escolhido: File) {
+    setArquivo(escolhido);
     setInspecao(null);
     setMapeamento(null);
     setResumo(null);
     setErro(null);
-    setDuplicadoId(null);
-  }
-
-  async function aoEscolherArquivo(escolhido: File) {
-    setArquivo(escolhido);
-    limpar();
     setLendo(true);
     try {
       const lido = await inspecionar(escolhido);
       setInspecao(lido);
       setMapeamento(lido.mapeamento);
-      setDuplicadoId(lido.ja_processado_id);
     } catch (excecao) {
-      setErro(excecao instanceof ErroApi ? excecao.message : "Não foi possível ler o arquivo.");
+      setErro(mensagem(excecao, "Não foi possível ler o arquivo."));
       setArquivo(null);
     } finally {
       setLendo(false);
     }
   }
 
-  async function aoProcessar(forcar = false) {
+  async function aoProcessar() {
     if (!arquivo || !mapeamento || !inspecao) return;
     setProcessando(true);
     setErro(null);
     try {
-      const consolidado = await processar(arquivo, {
-        aba: inspecao.aba,
-        mapeamento: mapeamento as unknown as Record<string, number | null>,
-        forcar,
-      });
-      setResumo(consolidado);
-      setDuplicadoId(null);
+      setResumo(
+        await processar(
+          arquivo,
+          inspecao.aba,
+          mapeamento as unknown as Record<string, number | null>,
+        ),
+      );
     } catch (excecao) {
-      if (excecao instanceof ErroApi && excecao.status === 409) {
-        setDuplicadoId(excecao.processamentoAnteriorId);
-        setErro(excecao.message);
-      } else {
-        setErro(
-          excecao instanceof ErroApi
-            ? excecao.message
-            : "Não foi possível consolidar a planilha. Tente de novo.",
-        );
-      }
+      setErro(mensagem(excecao, "Não foi possível consolidar a planilha. Tente de novo."));
     } finally {
       setProcessando(false);
+    }
+  }
+
+  async function aoBaixar() {
+    if (!arquivo || !mapeamento || !inspecao) return;
+    setBaixando(true);
+    setErro(null);
+    try {
+      await baixarXlsx(
+        arquivo,
+        inspecao.aba,
+        mapeamento as unknown as Record<string, number | null>,
+      );
+    } catch (excecao) {
+      setErro(mensagem(excecao, "Não foi possível gerar a planilha. Tente de novo."));
+    } finally {
+      setBaixando(false);
     }
   }
 
@@ -88,21 +93,7 @@ export default function Pagina() {
 
       {erro && (
         <div className="mb-6 rounded border border-negativo/30 bg-rose-50 px-4 py-3 text-sm text-negativo">
-          <p>{erro}</p>
-          {duplicadoId !== null && (
-            <div className="mt-2 flex flex-wrap gap-4">
-              <Link href={`/historico?abrir=${duplicadoId}`} className="font-medium underline">
-                Abrir o resultado anterior
-              </Link>
-              <button
-                type="button"
-                onClick={() => aoProcessar(true)}
-                className="font-medium underline"
-              >
-                Processar mesmo assim
-              </button>
-            </div>
-          )}
+          {erro}
         </div>
       )}
 
@@ -125,7 +116,7 @@ export default function Pagina() {
             mapeamento={mapeamento}
             processando={processando}
             onMapeamento={setMapeamento}
-            onProcessar={() => aoProcessar(false)}
+            onProcessar={aoProcessar}
           />
         </Bloco>
       )}
@@ -136,21 +127,17 @@ export default function Pagina() {
           titulo="Resumo"
           descricao={`${descreverPeriodo(resumo.periodo_inicio, resumo.periodo_fim)} — ${resumo.qtd_lancamentos} lançamentos`}
         >
-          <TabelaResumo resumo={resumo} positivo={false} />
+          <TabelaResumo resumo={resumo} />
           <Avisos avisos={resumo.avisos} />
-          <div className="mt-6 flex flex-wrap gap-4">
-            <a
-              href={urlDownload(resumo.processamento_id)}
-              className="rounded bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700"
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={aoBaixar}
+              disabled={baixando}
+              className="rounded bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              Baixar planilha consolidada
-            </a>
-            <Link
-              href="/historico"
-              className="rounded border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-            >
-              Ver histórico
-            </Link>
+              {baixando ? "Gerando a planilha…" : "Baixar planilha consolidada"}
+            </button>
           </div>
         </Bloco>
       )}

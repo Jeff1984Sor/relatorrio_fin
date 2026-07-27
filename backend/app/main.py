@@ -3,32 +3,21 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from . import config
-from .database import criar_tabelas
 from .routers import despesas
 
 logger = logging.getLogger("relatorio_fin")
 
-@asynccontextmanager
-async def ciclo_de_vida(_app: FastAPI) -> AsyncIterator[None]:
-    config.garantir_diretorios()
-    criar_tabelas()
-    yield
-
-
 app = FastAPI(
     title="Relatório Financeiro — Agrupador de Despesas",
-    version="1.0.0",
+    version="2.0.0",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
-    lifespan=ciclo_de_vida,
 )
 
 app.add_middleware(

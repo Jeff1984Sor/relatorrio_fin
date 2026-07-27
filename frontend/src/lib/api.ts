@@ -1,90 +1,88 @@
-import type { Comparacao, Historico, Inspecao, Resumo } from "./tipos";
+import type { Inspecao, Resumo } from "./tipos";
 
 const BASE = "/api/despesas";
 
 /** Erro já com texto pronto para a tela — nunca expõe detalhe técnico. */
 export class ErroApi extends Error {
   readonly status: number;
-  readonly processamentoAnteriorId: number | null;
 
-  constructor(mensagem: string, status: number, processamentoAnteriorId: number | null = null) {
+  constructor(mensagem: string, status: number) {
     super(mensagem);
     this.status = status;
-    this.processamentoAnteriorId = processamentoAnteriorId;
   }
 }
 
 const MSG_REDE =
   "Não foi possível falar com o servidor. Confira sua conexão e tente de novo.";
 
-async function tratar<T>(resposta: Response): Promise<T> {
-  if (resposta.ok) return (await resposta.json()) as T;
-
-  let detalhe: unknown = null;
+async function mensagemDeErro(resposta: Response): Promise<string> {
   try {
-    detalhe = (await resposta.json())?.detail;
+    const detalhe = (await resposta.json())?.detail;
+    if (typeof detalhe === "string" && detalhe) return detalhe;
   } catch {
-    detalhe = null;
+    /* corpo não era JSON */
   }
-
-  if (detalhe && typeof detalhe === "object" && "detalhe" in detalhe) {
-    const corpo = detalhe as { detalhe: string; processamento_id: number };
-    throw new ErroApi(corpo.detalhe, resposta.status, corpo.processamento_id);
-  }
-
-  const texto =
-    typeof detalhe === "string" && detalhe
-      ? detalhe
-      : "Não foi possível concluir a operação. Tente de novo.";
-  throw new ErroApi(texto, resposta.status);
+  return "Não foi possível concluir a operação. Tente de novo.";
 }
 
-async function enviar<T>(caminho: string, corpo?: FormData): Promise<T> {
-  let resposta: Response;
-  try {
-    resposta = corpo
-      ? await fetch(caminho, { method: "POST", body: corpo })
-      : await fetch(caminho);
-  } catch {
-    throw new ErroApi(MSG_REDE, 0);
-  }
-  return tratar<T>(resposta);
-}
-
-export function inspecionar(arquivo: File, aba?: string): Promise<Inspecao> {
+function corpo(
+  arquivo: File,
+  aba: string | undefined,
+  mapeamento: Record<string, number | null>,
+): FormData {
   const dados = new FormData();
   dados.append("arquivo", arquivo);
   if (aba) dados.append("aba", aba);
-  return enviar<Inspecao>(`${BASE}/inspecionar`, dados);
+  dados.append("mapeamento", JSON.stringify(mapeamento));
+  return dados;
 }
 
-export type OpcoesProcessamento = {
-  aba?: string;
-  mapeamento: Record<string, number | null>;
-  forcar?: boolean;
-};
+async function postar(caminho: string, dados: FormData): Promise<Response> {
+  let resposta: Response;
+  try {
+    resposta = await fetch(caminho, { method: "POST", body: dados });
+  } catch {
+    throw new ErroApi(MSG_REDE, 0);
+  }
+  if (!resposta.ok) throw new ErroApi(await mensagemDeErro(resposta), resposta.status);
+  return resposta;
+}
 
-export function processar(arquivo: File, opcoes: OpcoesProcessamento): Promise<Resumo> {
+export async function inspecionar(arquivo: File, aba?: string): Promise<Inspecao> {
   const dados = new FormData();
   dados.append("arquivo", arquivo);
-  if (opcoes.aba) dados.append("aba", opcoes.aba);
-  dados.append("mapeamento", JSON.stringify(opcoes.mapeamento));
-  if (opcoes.forcar) dados.append("forcar", "true");
-  return enviar<Resumo>(`${BASE}/processar`, dados);
+  if (aba) dados.append("aba", aba);
+  const resposta = await postar(`${BASE}/inspecionar`, dados);
+  return (await resposta.json()) as Inspecao;
 }
 
-export function obterResumo(id: number): Promise<Resumo> {
-  return enviar<Resumo>(`${BASE}/${id}`);
+export async function processar(
+  arquivo: File,
+  aba: string | undefined,
+  mapeamento: Record<string, number | null>,
+): Promise<Resumo> {
+  const resposta = await postar(`${BASE}/processar`, corpo(arquivo, aba, mapeamento));
+  return (await resposta.json()) as Resumo;
 }
 
-export function listarHistorico(pagina = 1): Promise<Historico> {
-  return enviar<Historico>(`${BASE}?pagina=${pagina}`);
-}
+/** Reenvia o arquivo e salva o .xlsx que volta. Nada fica guardado no servidor. */
+export async function baixarXlsx(
+  arquivo: File,
+  aba: string | undefined,
+  mapeamento: Record<string, number | null>,
+): Promise<void> {
+  const resposta = await postar(`${BASE}/xlsx`, corpo(arquivo, aba, mapeamento));
+  const blob = await resposta.blob();
 
-export function comparar(a: number, b: number): Promise<Comparacao> {
-  return enviar<Comparacao>(`${BASE}/comparar?a=${a}&b=${b}`);
-}
+  const cabecalho = resposta.headers.get("content-disposition") ?? "";
+  const nome = /filename="([^"]+)"/.exec(cabecalho)?.[1] ?? "resumo-despesas.xlsx";
 
-export function urlDownload(id: number): string {
-  return `${BASE}/${id}/xlsx`;
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nome;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }

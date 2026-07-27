@@ -1,22 +1,15 @@
-import os
+import io
 from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
+
+from app.main import app
 
 
 @pytest.fixture()
-def cliente(tmp_path, monkeypatch):
-    """App isolado: banco e arquivos vão para um diretório temporário."""
-    monkeypatch.setenv("DATA_DIR", str(tmp_path))
-    monkeypatch.setenv("STORAGE_DIR", str(tmp_path / "arquivos"))
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'teste.db'}")
-
-    for modulo in [m for m in list(os.sys.modules) if m.startswith("app")]:
-        del os.sys.modules[modulo]
-
-    from app.main import app
-
+def cliente():
     with TestClient(app) as cliente:
         yield cliente
 
@@ -40,45 +33,39 @@ def test_inspecionar_devolve_mapeamento_e_amostra(cliente, base_suja):
     assert corpo["colunas"][7] == "Valor Líquido"
     assert corpo["mapeamento"]["valor"] == 7
     assert len(corpo["amostra"]) == 10
-    assert corpo["ja_processado_id"] is None
 
 
-def test_fluxo_completo_processar_e_baixar(cliente, base_suja):
+def test_processar_devolve_o_resumo(cliente, base_suja):
     resposta = cliente.post("/api/despesas/processar", files=_upload(base_suja))
     assert resposta.status_code == 200
 
     corpo = resposta.json()
     assert Decimal(str(corpo["total_geral"])) == Decimal("-11625.85")
     assert corpo["qtd_lancamentos"] == 11
+    assert corpo["nome_arquivo"] == "base-suja.xlsx"
     assert corpo["avisos"]
-
-    processamento_id = corpo["processamento_id"]
-
-    salvo = cliente.get(f"/api/despesas/{processamento_id}")
-    assert salvo.status_code == 200
-    assert Decimal(str(salvo.json()["total_geral"])) == Decimal("-11625.85")
-
-    xlsx = cliente.get(f"/api/despesas/{processamento_id}/xlsx")
-    assert xlsx.status_code == 200
-    assert "resumo-base-suja.xlsx" in xlsx.headers["content-disposition"]
-    assert xlsx.content[:2] == b"PK"
+    assert corpo["categorias"]
 
 
-def test_arquivo_repetido_avisa_em_vez_de_duplicar(cliente, base_suja):
-    primeiro = cliente.post("/api/despesas/processar", files=_upload(base_suja))
-    anterior_id = primeiro.json()["processamento_id"]
+def test_baixar_xlsx_sem_reprocessar_pela_tela(cliente, base_suja):
+    resposta = cliente.post("/api/despesas/xlsx", files=_upload(base_suja))
+    assert resposta.status_code == 200
+    assert "resumo-base-suja.xlsx" in resposta.headers["content-disposition"]
+    assert resposta.content[:2] == b"PK"
 
-    repetido = cliente.post("/api/despesas/processar", files=_upload(base_suja))
-    assert repetido.status_code == 409
-    assert repetido.json()["detail"]["processamento_id"] == anterior_id
+    wb = load_workbook(io.BytesIO(resposta.content))
+    ws = wb["Resumo"]
+    assert ws.cell(row=ws.max_row, column=1).value == "TOTAL GERAL"
+    assert Decimal(str(ws.cell(row=ws.max_row, column=2).value)) == Decimal("-11625.85")
 
-    inspecao = cliente.post("/api/despesas/inspecionar", files=_upload(base_suja))
-    assert inspecao.json()["ja_processado_id"] == anterior_id
 
-    forcado = cliente.post(
-        "/api/despesas/processar", files=_upload(base_suja), data={"forcar": "true"}
-    )
-    assert forcado.status_code == 200
+def test_mesmo_arquivo_pode_subir_quantas_vezes_quiser(cliente, base_suja):
+    """Não há trava de duplicado nem estado: o resultado é sempre idêntico."""
+    respostas = [
+        cliente.post("/api/despesas/processar", files=_upload(base_suja)) for _ in range(5)
+    ]
+    assert [r.status_code for r in respostas] == [200] * 5
+    assert len({r.text for r in respostas}) == 1
 
 
 def test_arquivo_corrompido_retorna_422_em_portugues_sem_traceback(cliente):
@@ -97,36 +84,42 @@ def test_extensao_nao_aceita(cliente):
     assert "não é aceito" in resposta.json()["detail"]
 
 
-def test_historico_e_comparacao(cliente, base_suja, base_sem_subcategoria):
-    a = cliente.post("/api/despesas/processar", files=_upload(base_suja)).json()
-    b = cliente.post(
-        "/api/despesas/processar", files=_upload(base_sem_subcategoria, "limpa.xlsx")
-    ).json()
-
-    historico = cliente.get("/api/despesas").json()
-    assert historico["total"] == 2
-    assert historico["itens"][0]["id"] == b["processamento_id"]
-
-    comparacao = cliente.get(
-        "/api/despesas/comparar",
-        params={"a": a["processamento_id"], "b": b["processamento_id"]},
-    )
-    assert comparacao.status_code == 200
-    corpo = comparacao.json()
-    assert Decimal(str(corpo["variacao"])) == Decimal("-3000.00") - Decimal("-11625.85")
-    assert corpo["categorias"]
-
-
-def test_processamento_inexistente(cliente):
-    assert cliente.get("/api/despesas/9999").status_code == 404
-
-
 def test_mapeamento_manual_sobrescreve_a_deteccao(cliente, base_suja):
-    """Forçando a coluna Valor bruto (índice 4) o total deve mudar de coluna."""
+    """Forçando a coluna Valor bruto (índice 4) em vez do Valor Líquido detectado."""
     resposta = cliente.post(
         "/api/despesas/processar",
         files=_upload(base_suja),
         data={"mapeamento": '{"valor": 4, "categoria": 8, "subcategoria": 9, "data": 0}'},
     )
     assert resposta.status_code == 200
-    assert resposta.json()["opcoes"]["mapeamento"]["valor"] == 4
+    assert Decimal(str(resposta.json()["total_geral"])) == Decimal("-11625.85")
+
+
+def test_mapeamento_invalido(cliente, base_suja):
+    resposta = cliente.post(
+        "/api/despesas/processar",
+        files=_upload(base_suja),
+        data={"mapeamento": "isto nao e json"},
+    )
+    assert resposta.status_code == 422
+    assert "mapeamento" in resposta.json()["detail"].lower()
+
+
+def test_categoria_concatenada_pela_api(cliente, base_categoria_concatenada):
+    resposta = cliente.post(
+        "/api/despesas/processar", files=_upload(base_categoria_concatenada, "junho.xlsx")
+    )
+    assert resposta.status_code == 200
+
+    rotulos = [c["rotulo"] for c in resposta.json()["categorias"]]
+    assert rotulos == ["CERTIDÕES", "DESPESA COM PESSOAL", "DESPESAS ADMINISTRATIVAS"]
+
+
+def test_rotas_de_estado_nao_existem_mais(cliente):
+    assert cliente.get("/api/despesas").status_code == 404
+    assert cliente.get("/api/despesas/1").status_code == 404
+    assert cliente.get("/api/despesas/comparar?a=1&b=2").status_code == 404
+
+
+def test_saude(cliente):
+    assert cliente.get("/api/saude").json() == {"status": "ok"}

@@ -57,8 +57,11 @@ Nas próximas vezes, só `git pull`.
 bash deploy/deploy.sh
 ```
 
-O script cria o virtualenv, instala as dependências, cria o banco SQLite, **roda os
-testes** e faz o build do Next. Se os testes falharem ele para antes de publicar.
+O script cria o virtualenv, instala as dependências, **roda os testes** e faz o
+build do Next. Se os testes falharem ele para antes de publicar.
+
+Não há banco nem migration: o app é sem estado. A planilha enviada só existe na
+memória durante o request.
 
 ## 5. Instalar os serviços (sobem sozinhos no boot)
 
@@ -137,14 +140,8 @@ sudo systemctl restart relatorio-fin-api relatorio-fin-web
 
 ## Backup
 
-Tudo que importa está em um diretório só:
-
-```bash
-tar czf ~/backup-relatorio-fin-$(date +%F).tar.gz \
-  -C /home/deploy/apps/relatorio_fin/backend data
-```
-
-`data/relatorio_fin.db` é o banco e `data/arquivos/` são os `.xlsx` gerados.
+Não há o que fazer backup: o app não guarda nada. O único estado é o código, que
+já está no GitHub. Se o servidor for perdido, é clonar e rodar o `deploy.sh` de novo.
 
 ## Opcional: domínio com nginx
 
@@ -184,5 +181,4 @@ Com nginx na frente, feche a 3007 no firewall (`sudo ufw delete allow 3007/tcp`)
 | Serviço não sobe | `sudo journalctl -u relatorio-fin-api -n 50 --no-pager` |
 | `Address already in use` | Outra app pegou a porta: `sudo ss -tulpn \| grep 8077` e troque a porta |
 | Web abre mas a API dá erro | `BACKEND_URL` no `.service` tem que apontar para a porta real da API |
-| `permission denied` no banco | `sudo chown -R deploy:deploy /home/deploy/apps/relatorio_fin/backend/data` |
 | Build do Next falha | Node abaixo de 20.9 — ver passo 2 |
