@@ -8,6 +8,12 @@ venv/
 # Fixtures geradas pelos testes
 backend/tests/fixtures/
 
+# Planilhas reais do escritório nunca vão para o repositório
+*.xls
+*.xlsx
+*.xlsm
+exemplos/
+
 # Node / Next
 node_modules/
 .next/

@@ -35,3 +35,17 @@ def base_categoria_concatenada(tmp_path_factory) -> bytes:
     destino = tmp_path_factory.mktemp("fixtures") / "categoria-concatenada.xlsx"
     fixture_builder.construir_categoria_concatenada(destino)
     return destino.read_bytes()
+
+
+@pytest.fixture(scope="session")
+def fluxo_de_caixa(tmp_path_factory) -> bytes:
+    destino = tmp_path_factory.mktemp("fixtures") / "fluxo-junho.xlsx"
+    fixture_builder.construir_fluxo_de_caixa(destino)
+    return destino.read_bytes()
+
+
+@pytest.fixture(scope="session")
+def fluxo_conta_unica(tmp_path_factory) -> bytes:
+    destino = tmp_path_factory.mktemp("fixtures") / "fluxo-itau.xlsx"
+    fixture_builder.construir_fluxo_de_caixa(destino, conta_unica=True)
+    return destino.read_bytes()

@@ -26,14 +26,13 @@ async function mensagemDeErro(resposta: Response): Promise<string> {
 }
 
 function corpo(
-  arquivo: File,
-  aba: string | undefined,
-  mapeamento: Record<string, number | null>,
+  arquivos: File[],
+  mapeamento?: Record<string, number | null> | null,
 ): FormData {
   const dados = new FormData();
-  dados.append("arquivo", arquivo);
-  if (aba) dados.append("aba", aba);
-  dados.append("mapeamento", JSON.stringify(mapeamento));
+  // Mesmo nome de campo repetido: é assim que o FastAPI recebe uma lista.
+  arquivos.forEach((arquivo) => dados.append("arquivos", arquivo));
+  if (mapeamento) dados.append("mapeamento", JSON.stringify(mapeamento));
   return dados;
 }
 
@@ -48,30 +47,25 @@ async function postar(caminho: string, dados: FormData): Promise<Response> {
   return resposta;
 }
 
-export async function inspecionar(arquivo: File, aba?: string): Promise<Inspecao> {
-  const dados = new FormData();
-  dados.append("arquivo", arquivo);
-  if (aba) dados.append("aba", aba);
-  const resposta = await postar(`${BASE}/inspecionar`, dados);
+export async function inspecionar(arquivos: File[]): Promise<Inspecao> {
+  const resposta = await postar(`${BASE}/inspecionar`, corpo(arquivos));
   return (await resposta.json()) as Inspecao;
 }
 
 export async function processar(
-  arquivo: File,
-  aba: string | undefined,
-  mapeamento: Record<string, number | null>,
+  arquivos: File[],
+  mapeamento: Record<string, number | null> | null,
 ): Promise<Resumo> {
-  const resposta = await postar(`${BASE}/processar`, corpo(arquivo, aba, mapeamento));
+  const resposta = await postar(`${BASE}/processar`, corpo(arquivos, mapeamento));
   return (await resposta.json()) as Resumo;
 }
 
-/** Reenvia o arquivo e salva o .xlsx que volta. Nada fica guardado no servidor. */
+/** Reenvia os arquivos e salva o .xlsx que volta. Nada fica guardado no servidor. */
 export async function baixarXlsx(
-  arquivo: File,
-  aba: string | undefined,
-  mapeamento: Record<string, number | null>,
+  arquivos: File[],
+  mapeamento: Record<string, number | null> | null,
 ): Promise<void> {
-  const resposta = await postar(`${BASE}/xlsx`, corpo(arquivo, aba, mapeamento));
+  const resposta = await postar(`${BASE}/xlsx`, corpo(arquivos, mapeamento));
   const blob = await resposta.blob();
 
   const cabecalho = resposta.headers.get("content-disposition") ?? "";

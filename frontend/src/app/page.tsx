@@ -16,7 +16,7 @@ function mensagem(excecao: unknown, padrao: string): string {
 }
 
 export default function Pagina() {
-  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [arquivos, setArquivos] = useState<File[]>([]);
   const [inspecao, setInspecao] = useState<Inspecao | null>(null);
   const [mapeamento, setMapeamento] = useState<Mapeamento | null>(null);
   const [resumo, setResumo] = useState<Resumo | null>(null);
@@ -26,54 +26,60 @@ export default function Pagina() {
   const [baixando, setBaixando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  async function aoEscolherArquivo(escolhido: File) {
-    setArquivo(escolhido);
+  async function reinspecionar(lista: File[]) {
+    setArquivos(lista);
     setInspecao(null);
     setMapeamento(null);
     setResumo(null);
     setErro(null);
+
+    if (lista.length === 0) return;
+
     setLendo(true);
     try {
-      const lido = await inspecionar(escolhido);
+      const lido = await inspecionar(lista);
       setInspecao(lido);
-      setMapeamento(lido.mapeamento);
+      setMapeamento(lido.arquivos[0].mapeamento);
     } catch (excecao) {
-      setErro(mensagem(excecao, "Não foi possível ler o arquivo."));
-      setArquivo(null);
+      setErro(mensagem(excecao, "Não foi possível ler os arquivos."));
     } finally {
       setLendo(false);
     }
   }
 
+  function aoEscolher(novos: File[]) {
+    // Mesmo nome e mesmo tamanho: o usuário selecionou o arquivo duas vezes.
+    const existentes = new Set(arquivos.map((a) => `${a.name}:${a.size}`));
+    const ineditos = novos.filter((a) => !existentes.has(`${a.name}:${a.size}`));
+    reinspecionar([...arquivos, ...ineditos]);
+  }
+
+  function aoRemover(indice: number) {
+    reinspecionar(arquivos.filter((_, i) => i !== indice));
+  }
+
+  const mapaParaEnvio = () =>
+    mapeamento ? (mapeamento as unknown as Record<string, number | null>) : null;
+
   async function aoProcessar() {
-    if (!arquivo || !mapeamento || !inspecao) return;
+    if (!arquivos.length || !mapeamento) return;
     setProcessando(true);
     setErro(null);
     try {
-      setResumo(
-        await processar(
-          arquivo,
-          inspecao.aba,
-          mapeamento as unknown as Record<string, number | null>,
-        ),
-      );
+      setResumo(await processar(arquivos, mapaParaEnvio()));
     } catch (excecao) {
-      setErro(mensagem(excecao, "Não foi possível consolidar a planilha. Tente de novo."));
+      setErro(mensagem(excecao, "Não foi possível consolidar as planilhas. Tente de novo."));
     } finally {
       setProcessando(false);
     }
   }
 
   async function aoBaixar() {
-    if (!arquivo || !mapeamento || !inspecao) return;
+    if (!arquivos.length || !mapeamento) return;
     setBaixando(true);
     setErro(null);
     try {
-      await baixarXlsx(
-        arquivo,
-        inspecao.aba,
-        mapeamento as unknown as Record<string, number | null>,
-      );
+      await baixarXlsx(arquivos, mapaParaEnvio());
     } catch (excecao) {
       setErro(mensagem(excecao, "Não foi possível gerar a planilha. Tente de novo."));
     } finally {
@@ -87,7 +93,7 @@ export default function Pagina() {
         Consolidar despesas por categoria
       </h1>
       <p className="mb-8 text-sm text-slate-600">
-        Suba a planilha analítica exportada do sistema de gestão e baixe o resumo pronto para a
+        Suba uma ou várias planilhas de despesas e baixe um resumo único, pronto para a
         diretoria.
       </p>
 
@@ -97,8 +103,17 @@ export default function Pagina() {
         </div>
       )}
 
-      <Bloco numero={1} titulo="Arquivo" descricao="Planilha analítica de despesas pagas.">
-        <Dropzone arquivo={arquivo} carregando={lendo} onEscolher={aoEscolherArquivo} />
+      <Bloco
+        numero={1}
+        titulo="Arquivos"
+        descricao="Planilhas de despesas pagas. Pode subir várias de uma vez."
+      >
+        <Dropzone
+          arquivos={arquivos}
+          carregando={lendo}
+          onEscolher={aoEscolher}
+          onRemover={aoRemover}
+        />
       </Bloco>
 
       {inspecao && mapeamento && (
@@ -106,13 +121,14 @@ export default function Pagina() {
           numero={2}
           titulo="Colunas"
           descricao={
-            inspecao.linha_cabecalho !== null
-              ? `Cabeçalho encontrado na linha ${inspecao.linha_cabecalho + 1}. Confira o que foi detectado e ajuste se precisar.`
+            inspecao.arquivos[0].linha_cabecalho !== null
+              ? `Cabeçalho encontrado na linha ${inspecao.arquivos[0].linha_cabecalho + 1}. Confira o que foi detectado e ajuste se precisar.`
               : "Confira o que foi detectado e ajuste se precisar."
           }
         >
           <BlocoColunas
-            inspecao={inspecao}
+            arquivo={inspecao.arquivos[0]}
+            qtdArquivos={inspecao.arquivos.length}
             mapeamento={mapeamento}
             processando={processando}
             onMapeamento={setMapeamento}
@@ -125,7 +141,9 @@ export default function Pagina() {
         <Bloco
           numero={3}
           titulo="Resumo"
-          descricao={`${descreverPeriodo(resumo.periodo_inicio, resumo.periodo_fim)} — ${resumo.qtd_lancamentos} lançamentos`}
+          descricao={`${descreverPeriodo(resumo.periodo_inicio, resumo.periodo_fim)} — ${resumo.qtd_lancamentos} lançamentos${
+            resumo.arquivos.length > 1 ? ` de ${resumo.arquivos.length} planilhas` : ""
+          }`}
         >
           <TabelaResumo resumo={resumo} />
           <Avisos avisos={resumo.avisos} />

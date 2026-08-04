@@ -1,17 +1,19 @@
 "use client";
 
-import type { CampoMapeamento, Inspecao, Mapeamento } from "@/lib/tipos";
+import type { ArquivoInspecionado, CampoMapeamento, Mapeamento } from "@/lib/tipos";
 
 const CAMPOS: { campo: CampoMapeamento; rotulo: string; obrigatorio: boolean }[] = [
   { campo: "valor", rotulo: "Valor a consolidar", obrigatorio: true },
   { campo: "categoria", rotulo: "Categoria", obrigatorio: false },
-  { campo: "subcategoria", rotulo: "Subcategoria", obrigatorio: false },
-  { campo: "data", rotulo: "Data de pagamento", obrigatorio: false },
+  { campo: "subcategoria", rotulo: "Subcategoria (se houver coluna própria)", obrigatorio: false },
+  { campo: "conta", rotulo: "Conta bancária", obrigatorio: false },
+  { campo: "data", rotulo: "Data", obrigatorio: false },
   { campo: "fornecedor", rotulo: "Fornecedor", obrigatorio: false },
 ];
 
 type Props = {
-  inspecao: Inspecao;
+  arquivo: ArquivoInspecionado;
+  qtdArquivos: number;
   mapeamento: Mapeamento;
   processando: boolean;
   onMapeamento: (mapeamento: Mapeamento) => void;
@@ -19,7 +21,8 @@ type Props = {
 };
 
 export default function BlocoColunas({
-  inspecao,
+  arquivo,
+  qtdArquivos,
   mapeamento,
   processando,
   onMapeamento,
@@ -27,6 +30,14 @@ export default function BlocoColunas({
 }: Props) {
   return (
     <div className="space-y-6">
+      {qtdArquivos > 1 && (
+        <p className="rounded border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-600">
+          O mapeamento abaixo foi detectado em <strong>{arquivo.nome}</strong> e vale para as{" "}
+          {qtdArquivos} planilhas. Se elas tiverem formatos diferentes, processe em lotes
+          separados.
+        </p>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2">
         {CAMPOS.map(({ campo, rotulo, obrigatorio }) => (
           <label key={campo} className="block text-sm">
@@ -45,7 +56,7 @@ export default function BlocoColunas({
               className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm focus:border-slate-900 focus:outline-none"
             >
               <option value="">— não usar —</option>
-              {inspecao.colunas.map((coluna, indice) => (
+              {arquivo.colunas.map((coluna, indice) => (
                 <option key={`${coluna}-${indice}`} value={indice}>
                   {coluna}
                 </option>
@@ -55,21 +66,40 @@ export default function BlocoColunas({
         ))}
       </div>
 
-      <p className="border-t border-slate-200 pt-5 text-xs text-slate-500">
-        Nomes escritos de formas diferentes são sempre unificados — &quot;Guias / Custas
-        Judiciais&quot; e &quot;Guias/Custas Judiciais&quot; viram uma linha só.
+      <label className="flex items-start gap-2 border-t border-slate-200 pt-5 text-sm">
+        <input
+          type="checkbox"
+          checked={mapeamento.somente_preenchidos}
+          onChange={(e) =>
+            onMapeamento({ ...mapeamento, somente_preenchidos: e.target.checked })
+          }
+          className="mt-0.5"
+        />
+        <span>
+          Considerar só as linhas com a coluna de valor preenchida
+          <span className="block text-xs text-slate-500">
+            Ligado automaticamente quando a coluna é <strong>Débito</strong>: as linhas em
+            branco são créditos (entradas), não despesas.
+          </span>
+        </span>
+      </label>
+
+      <p className="text-xs text-slate-500">
+        Nomes escritos de formas diferentes são sempre unificados, e{" "}
+        <code className="rounded bg-slate-100 px-1">Categoria : Subcategoria</code> na mesma
+        célula é separado automaticamente.
       </p>
 
-      {inspecao.amostra.length > 0 && (
+      {arquivo.amostra.length > 0 && (
         <details className="text-sm">
           <summary className="cursor-pointer text-slate-600 hover:text-slate-900">
-            Ver as primeiras linhas do arquivo
+            Ver as primeiras linhas de {arquivo.nome}
           </summary>
           <div className="mt-3 overflow-x-auto rounded border border-slate-200">
             <table className="min-w-full text-xs">
               <thead className="bg-slate-100">
                 <tr>
-                  {inspecao.colunas.map((coluna, indice) => (
+                  {arquivo.colunas.map((coluna, indice) => (
                     <th key={indice} className="whitespace-nowrap px-3 py-2 text-left font-medium">
                       {coluna}
                     </th>
@@ -77,9 +107,9 @@ export default function BlocoColunas({
                 </tr>
               </thead>
               <tbody>
-                {inspecao.amostra.map((linha, indiceLinha) => (
+                {arquivo.amostra.map((linha, indiceLinha) => (
                   <tr key={indiceLinha} className="border-t border-slate-100">
-                    {inspecao.colunas.map((_, indiceColuna) => (
+                    {arquivo.colunas.map((_, indiceColuna) => (
                       <td key={indiceColuna} className="whitespace-nowrap px-3 py-1.5">
                         {linha[indiceColuna] ?? ""}
                       </td>

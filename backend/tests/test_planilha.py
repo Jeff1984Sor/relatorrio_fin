@@ -21,6 +21,14 @@ def _abrir(conteudo_xlsx: bytes):
     return load_workbook(io.BytesIO(conteudo_xlsx))
 
 
+def _coluna(ws, titulo: str) -> int:
+    """Acha a coluna pelo cabeçalho — a posição muda com o número de contas."""
+    for indice in range(1, ws.max_column + 1):
+        if ws.cell(row=4, column=indice).value == titulo:
+            return indice
+    raise AssertionError(f"coluna {titulo!r} não encontrada")
+
+
 def test_abas_geradas(base_suja):
     wb = _abrir(gerar_xlsx(_resumo(base_suja), {"nome_arquivo": "base.xlsx"}))
     assert wb.sheetnames == ["Resumo", "Detalhado", "Conferência"]
@@ -50,22 +58,33 @@ def test_subcategorias_ficam_no_nivel_1_do_agrupamento(base_suja):
 def test_total_geral_na_ultima_linha_bate_com_a_base(base_suja):
     wb = _abrir(gerar_xlsx(_resumo(base_suja), {"nome_arquivo": "base.xlsx"}))
     ws = wb["Resumo"]
+    total = _coluna(ws, "Total")
     assert ws.cell(row=ws.max_row, column=1).value == "TOTAL GERAL"
-    assert Decimal(str(ws.cell(row=ws.max_row, column=2).value)) == Decimal(TOTAL_ESPERADO)
+    assert Decimal(str(ws.cell(row=ws.max_row, column=total).value)) == Decimal(TOTAL_ESPERADO)
 
 
-def test_toggle_positivo_inverte_o_sinal_na_planilha(base_suja):
-    wb = _abrir(gerar_xlsx(_resumo(base_suja), {"nome_arquivo": "base.xlsx"}, positivo=True))
+def test_colunas_por_conta_somam_o_total_da_linha(base_suja):
+    """A base suja tem três contas financeiras: cada uma vira uma coluna."""
+    wb = _abrir(gerar_xlsx(_resumo(base_suja), {"nome_arquivo": "base.xlsx"}))
     ws = wb["Resumo"]
-    assert Decimal(str(ws.cell(row=ws.max_row, column=2).value)) == -Decimal(TOTAL_ESPERADO)
+
+    contas = ["Bradesco", "Caixa", "Itaú"]
+    for conta in contas:
+        _coluna(ws, conta)
+
+    total = _coluna(ws, "Total")
+    soma_contas = sum(
+        Decimal(str(ws.cell(row=ws.max_row, column=_coluna(ws, c)).value)) for c in contas
+    )
+    assert soma_contas == Decimal(str(ws.cell(row=ws.max_row, column=total).value))
 
 
 def test_cabecalho_congelado_e_formatos(base_suja):
     wb = _abrir(gerar_xlsx(_resumo(base_suja), {"nome_arquivo": "base.xlsx"}))
     ws = wb["Resumo"]
     assert ws.freeze_panes == "A5"
-    assert ws.cell(row=5, column=2).number_format.startswith('"R$"')
-    assert ws.cell(row=5, column=3).number_format == "0.0%"
+    assert ws.cell(row=5, column=_coluna(ws, "Total")).number_format.startswith('"R$"')
+    assert ws.cell(row=5, column=_coluna(ws, "%")).number_format == "0.0%"
     assert ws["A4"].value == "Categoria / Subcategoria"
 
 

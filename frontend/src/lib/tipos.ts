@@ -4,17 +4,24 @@ export type Mapeamento = {
   subcategoria: number | null;
   data: number | null;
   fornecedor: number | null;
+  conta: number | null;
+  somente_preenchidos: boolean;
 };
 
-export type CampoMapeamento = keyof Mapeamento;
+export type CampoMapeamento = Exclude<keyof Mapeamento, "somente_preenchidos">;
 
-export type Inspecao = {
+export type ArquivoInspecionado = {
+  nome: string;
   abas: string[];
   aba: string;
   linha_cabecalho: number | null;
   colunas: string[];
   mapeamento: Mapeamento;
   amostra: string[][];
+};
+
+export type Inspecao = {
+  arquivos: ArquivoInspecionado[];
 };
 
 export type Aviso = {
@@ -30,16 +37,19 @@ export type Subcategoria = {
   total: string;
   qtd: number;
   percentual: number;
+  por_conta: Record<string, string>;
 };
 
 export type Categoria = Subcategoria & { subcategorias: Subcategoria[] };
 
 export type Resumo = {
-  nome_arquivo: string;
+  arquivos: string[];
   periodo_inicio: string | null;
   periodo_fim: string | null;
   total_geral: string;
   qtd_lancamentos: number;
+  contas: string[];
+  total_por_conta: Record<string, string>;
   categorias: Categoria[];
   avisos: Aviso[];
 };

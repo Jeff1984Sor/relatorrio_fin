@@ -14,9 +14,12 @@ class MapeamentoOut(BaseModel):
     subcategoria: int | None = None
     data: int | None = None
     fornecedor: int | None = None
+    conta: int | None = None
+    somente_preenchidos: bool = False
 
 
-class InspecaoOut(BaseModel):
+class ArquivoInspecionadoOut(BaseModel):
+    nome: str
     abas: list[str]
     aba: str
     linha_cabecalho: int | None = Field(
@@ -25,6 +28,10 @@ class InspecaoOut(BaseModel):
     colunas: list[str]
     mapeamento: MapeamentoOut
     amostra: list[list[str]] = Field(description="10 primeiras linhas de dados")
+
+
+class InspecaoOut(BaseModel):
+    arquivos: list[ArquivoInspecionadoOut]
 
 
 class AvisoOut(BaseModel):
@@ -40,22 +47,20 @@ class SubcategoriaOut(BaseModel):
     total: Decimal
     qtd: int
     percentual: float
+    por_conta: dict[str, Decimal] = {}
 
 
-class CategoriaOut(BaseModel):
-    rotulo: str
-    chave: str
-    total: Decimal
-    qtd: int
-    percentual: float
+class CategoriaOut(SubcategoriaOut):
     subcategorias: list[SubcategoriaOut]
 
 
 class ResumoOut(BaseModel):
-    nome_arquivo: str
+    arquivos: list[str]
     periodo_inicio: dt.date | None
     periodo_fim: dt.date | None
     total_geral: Decimal
     qtd_lancamentos: int
+    contas: list[str]
+    total_por_conta: dict[str, Decimal]
     categorias: list[CategoriaOut]
     avisos: list[AvisoOut]

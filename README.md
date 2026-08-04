@@ -9,15 +9,30 @@ O mesmo arquivo pode ser enviado quantas vezes quiser, e o resultado é sempre o
 
 ## O que faz
 
-- Lê `.xlsx`, `.xls`, `.xlsm` e `.csv` (até 15 MB), com o cabeçalho em qualquer
-  uma das 30 primeiras linhas.
+- Lê `.xlsx`, `.xls`, `.xlsm` e `.csv` (até 15 MB cada), com o cabeçalho em
+  qualquer uma das 30 primeiras linhas.
+- **Aceita várias planilhas de uma vez** e entrega um consolidado único, com uma
+  coluna de valor por conta bancária mais a coluna Total.
 - Detecta as colunas sozinho e deixa o usuário corrigir o mapeamento antes de processar.
-- Separa `CATEGORIA:SUBCATEGORIA` quando os dois níveis vêm concatenados numa
+- **Só considera as linhas com Débito preenchido** quando a planilha tem colunas
+  Débito/Crédito — as linhas em branco são créditos (entradas), não despesas.
+- Separa `CATEGORIA : SUBCATEGORIA` quando os dois níveis vêm concatenados numa
   célula só — é como o sistema de gestão exporta.
+- Agrupa os lançamentos de folha sem categoria em `Despesas com Pessoal`, usando
+  o beneficiário como subcategoria.
 - Unifica nomes cadastrados de formas diferentes: `Guias / Custas Judiciais` e
   `Guias/Custas Judiciais` viram uma linha só.
 - Mostra a prévia com categorias recolhíveis e total geral, e devolve o `.xlsx`
   consolidado com agrupamento nativo do Excel.
+
+## Formatos de planilha suportados
+
+| Formato | Coluna de valor | Categoria | Conta |
+|---|---|---|---|
+| Analítico de despesas | `Valor Líquido` (ou `Valor bruto`) | colunas `Categoria` e `Subcategoria` | `Conta Financeira` |
+| Fluxo de caixa | `Débito` (só linhas preenchidas) | `Categoria / Subcategoria` numa coluna só | `Banco/Conta Financeira` |
+
+A detecção é automática nos dois casos; o mapeamento pode ser corrigido na tela.
 
 ## Stack
 
@@ -57,15 +72,16 @@ deploy/                  units systemd e script de deploy
 
 | Método | Rota | O que devolve |
 |---|---|---|
-| `POST` | `/api/despesas/inspecionar` | abas, cabeçalho detectado, mapeamento sugerido, 10 primeiras linhas |
-| `POST` | `/api/despesas/processar` | resumo em JSON |
+| `POST` | `/api/despesas/inspecionar` | um bloco por arquivo: abas, cabeçalho detectado, mapeamento sugerido, 10 primeiras linhas |
+| `POST` | `/api/despesas/processar` | resumo consolidado em JSON |
 | `POST` | `/api/despesas/xlsx` | arquivo consolidado |
 
 Documentação interativa em `/api/docs`.
 
-As três rotas recebem o arquivo. O download refaz a consolidação a partir do
-mesmo arquivo que o navegador ainda tem em memória — é o preço de não guardar
-estado no servidor, e é barato: a consolidação leva milissegundos.
+As três rotas recebem os arquivos no campo `arquivos` (repetido, até 24 por vez).
+O download refaz a consolidação a partir dos mesmos arquivos que o navegador
+ainda tem em memória — é o preço de não guardar estado no servidor, e é barato:
+a consolidação leva milissegundos.
 
 Erro de leitura devolve `422` com mensagem em português dizendo o que fazer —
 nunca um traceback.
@@ -75,6 +91,11 @@ nunca um traceback.
 - **`Decimal` em todo o caminho, nunca `float`.** Arredondamento só na apresentação.
 - **`CATEGORIA:SUBCATEGORIA` é cortado no primeiro `:`.** Quando a planilha tem
   coluna de subcategoria própria, ela tem prioridade sobre a separação.
+- **Transferências entre contas entram como despesa**, na categoria
+  `Transferência para`. Foi decisão do escritório: elas saíram do caixa e devem
+  aparecer. Se um dia mudar, o lugar é `extrair_linhas`.
+- **A coluna por conta só aparece quando há mais de uma conta.** Com uma só,
+  ela seria idêntica à coluna Total.
 - **`summaryBelow = False`** na aba `Resumo`: sem isso o `+/−` da lateral do
   Excel aparece na linha errada.
 - **Ordenação pt-BR sem `locale`**: comparar o texto sem acento põe `Á` junto de
@@ -100,10 +121,11 @@ npm run dev            # http://localhost:3007
 cd backend && .venv/bin/python -m pytest -q
 ```
 
-76 testes cobrindo parsing de valores, unificação de nomes, separação de
-`CATEGORIA:SUBCATEGORIA`, detecção de cabeçalho fora da linha 1, planilha sem
-subcategoria, linha com valor vazio no meio da base, geração da planilha e as
-rotas da API.
+90 testes cobrindo os dois formatos de planilha: parsing de valores, unificação
+de nomes, separação de `CATEGORIA : SUBCATEGORIA`, filtro por coluna Débito,
+folha sem categoria, totais por conta bancária, consolidado de vários arquivos,
+detecção de cabeçalho fora da linha 1, linha com valor vazio no meio da base,
+geração da planilha e as rotas da API.
 
 O mais importante é `test_invariante_principal_soma_do_resumo_bate_com_a_base`:
 a soma do resumo tem que bater, centavo a centavo, com a base analítica. As
