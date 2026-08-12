@@ -49,6 +49,36 @@ COLUNAS: list[tuple[str, str, int, str | None]] = [
 LINHA_CABECALHO = 4
 COLUNAS_DESTAQUE = {"Variável"}
 
+# Colunas derivadas saem como fórmula, não como número congelado: assim, mexer
+# na alíquota ou na participação dentro do Excel recalcula a variável na hora.
+FORMULAS = {
+    "Valor dos Impostos": "={pago}{linha}*{imposto}{linha}",
+    "Valor Líquido": "={pago}{linha}-{impostos}{linha}",
+    "Variável": "={liquido}{linha}*{participacao}{linha}",
+}
+
+TOTALIZADAS = ("Valor Bruto", "Valor Pago", "Valor dos Impostos", "Valor Líquido", "Variável")
+
+
+def _letras() -> dict[str, str]:
+    """Título da coluna → letra no Excel, para montar as fórmulas."""
+    return {
+        titulo: get_column_letter(indice)
+        for indice, (titulo, *_resto) in enumerate(COLUNAS, start=1)
+    }
+
+
+def _formula(titulo: str, linha: int) -> str:
+    letras = _letras()
+    return FORMULAS[titulo].format(
+        linha=linha,
+        pago=letras["Valor Pago"],
+        imposto=letras["Imposto"],
+        impostos=letras["Valor dos Impostos"],
+        liquido=letras["Valor Líquido"],
+        participacao=letras["Participação"],
+    )
+
 
 def _titulo(ws: Worksheet, resumo: ResumoVariavel) -> None:
     letra_final = get_column_letter(len(COLUNAS))
@@ -92,7 +122,7 @@ def _cabecalho(ws: Worksheet) -> None:
 
 def _escrever_linha(ws: Worksheet, indice: int, linha: LinhaVariavel, zebra: bool) -> None:
     for coluna, (titulo, campo, _largura, formato) in enumerate(COLUNAS, start=1):
-        valor = getattr(linha, campo)
+        valor = _formula(titulo, indice) if titulo in FORMULAS else getattr(linha, campo)
         celula = ws.cell(row=indice, column=coluna, value=valor)
 
         if formato:
@@ -110,7 +140,7 @@ def _escrever_linha(ws: Worksheet, indice: int, linha: LinhaVariavel, zebra: boo
             celula.fill = _preenchimento(COR_ZEBRA)
 
 
-def _rodape(ws: Worksheet, indice: int, resumo: ResumoVariavel) -> None:
+def _rodape(ws: Worksheet, indice: int, primeira: int) -> None:
     for coluna in range(1, len(COLUNAS) + 1):
         celula = ws.cell(row=indice, column=coluna)
         celula.fill = _preenchimento(COR_ESCURA)
@@ -119,14 +149,15 @@ def _rodape(ws: Worksheet, indice: int, resumo: ResumoVariavel) -> None:
 
     ws.cell(row=indice, column=1, value="TOTAL").alignment = Alignment(horizontal="left")
 
-    totais = {
-        "Valor Pago": resumo.total_pago,
-        "Valor Líquido": resumo.total_liquido,
-        "Variável": resumo.total_variavel,
-    }
+    if indice <= primeira:  # relatório sem nenhuma linha
+        return
+
     for coluna, (titulo, _campo, _largura, _formato) in enumerate(COLUNAS, start=1):
-        if titulo in totais:
-            celula = ws.cell(row=indice, column=coluna, value=totais[titulo])
+        if titulo in TOTALIZADAS:
+            letra = get_column_letter(coluna)
+            celula = ws.cell(
+                row=indice, column=coluna, value=f"=SUM({letra}{primeira}:{letra}{indice - 1})"
+            )
             celula.number_format = FORMATO_MOEDA
 
 
@@ -161,12 +192,13 @@ def gerar_xlsx(resumo: ResumoVariavel) -> bytes:
     _titulo(ws, resumo)
     _cabecalho(ws)
 
-    indice = LINHA_CABECALHO + 1
+    primeira = LINHA_CABECALHO + 1
+    indice = primeira
     for posicao, linha in enumerate(resumo.linhas):
         _escrever_linha(ws, indice, linha, zebra=posicao % 2 == 1)
         indice += 1
 
-    _rodape(ws, indice, resumo)
+    _rodape(ws, indice, primeira)
 
     if resumo.avisos:
         _aba_conferencia(wb.create_sheet("Conferência"), resumo)

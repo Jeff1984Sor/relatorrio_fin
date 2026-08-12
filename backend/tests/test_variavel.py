@@ -260,6 +260,45 @@ def test_xlsx_do_variavel(cliente, cubo, casos):
     assert "Conferência" in wb.sheetnames
 
 
+def test_colunas_derivadas_sao_formulas_do_excel(cliente, cubo, casos):
+    """Mexer na Participação ou no Imposto dentro do Excel tem que recalcular."""
+    from app.services.planilha_variavel import COLUNAS
+
+    resposta = cliente.post("/api/variavel/xlsx", files=_envio(cubo, casos))
+    ws = load_workbook(io.BytesIO(resposta.content))["Relatório Variável"]
+
+    coluna = {titulo: indice for indice, (titulo, *_) in enumerate(COLUNAS, start=1)}
+    primeira = 5
+
+    assert ws.cell(row=primeira, column=coluna["Valor dos Impostos"]).value == "=N5*O5"
+    assert ws.cell(row=primeira, column=coluna["Valor Líquido"]).value == "=N5-P5"
+    assert ws.cell(row=primeira, column=coluna["Variável"]).value == "=Q5*R5"
+
+    # O total é SUM, então acompanha qualquer edição nas linhas.
+    total = ws.cell(row=ws.max_row, column=coluna["Variável"]).value
+    assert total.startswith("=SUM(S5:S")
+
+
+def test_planilha_sem_linhas_nao_quebra_o_total(tmp_path):
+    """Rodapé com SUM de um intervalo vazio geraria uma fórmula inválida."""
+    from app.services import planilha_variavel
+    from app.services.variavel import ResumoVariavel
+
+    vazio = ResumoVariavel(
+        linhas=[],
+        aliquota=Decimal("0.175"),
+        total_pago=Decimal("0"),
+        total_liquido=Decimal("0"),
+        total_variavel=Decimal("0"),
+        por_responsavel={},
+        periodo_inicio=None,
+        periodo_fim=None,
+        avisos=[],
+    )
+    ws = load_workbook(io.BytesIO(planilha_variavel.gerar_xlsx(vazio)))["Relatório Variável"]
+    assert ws.cell(row=5, column=1).value == "TOTAL"
+
+
 def test_arquivo_de_casos_sem_as_colunas_certas(cliente, cubo):
     resposta = cliente.post(
         "/api/variavel/processar",
