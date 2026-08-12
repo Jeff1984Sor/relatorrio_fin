@@ -181,6 +181,51 @@ def test_total_por_responsavel_bate_com_a_soma_das_linhas(resumo):
     assert resumo.total_variavel == soma_linhas
 
 
+def test_participacao_vale_para_todos_os_casos(resumo):
+    """Fixa em 30%, sem depender da coluna do relatório de casos."""
+    com_responsavel = [l for l in resumo.linhas if l.responsavel]
+    assert com_responsavel
+    assert {l.participacao for l in com_responsavel} == {Decimal("0.30")}
+
+    # Sem responsável não há a quem pagar: participação em branco, variável zero.
+    sem = next(l for l in resumo.linhas if not l.responsavel)
+    assert sem.participacao is None
+    assert sem.variavel == Decimal("0")
+
+
+def test_participacao_ignora_o_valor_do_arquivo(cubo, tmp_path):
+    """O relatório de casos vem com a coluna vazia em parte das exportações."""
+    from openpyxl import Workbook
+
+    destino = tmp_path / "casos-participacao-vazia.xlsx"
+    wb = Workbook()
+    ws = wb.active
+    for coluna, titulo in enumerate(
+        ("Número do Caso", "Título", "Responsável", "Participação"), start=1
+    ):
+        ws.cell(row=1, column=coluna, value=titulo)
+    ws.append([2299, "MA Hipódromo", "Alice Rocha Assuncao", None])
+    wb.save(destino)
+
+    linhas_cubo, _ = ler_linhas(cubo, "cubo.xls")
+    linhas_casos, _ = ler_linhas(destino.read_bytes(), "casos.xlsx")
+    resumo = variavel.montar(linhas_cubo, linhas_casos)
+
+    linha = next(l for l in resumo.linhas if l.nh == "Nº 5072")
+    assert linha.participacao == Decimal("0.30")
+    assert linha.variavel == Decimal("522.63")
+
+
+def test_participacao_configuravel(cubo, casos):
+    linhas_cubo, _ = ler_linhas(cubo, "cubo.xls")
+    linhas_casos, _ = ler_linhas(casos, "casos.xlsx")
+    resumo = variavel.montar(linhas_cubo, linhas_casos, participacao=Decimal("0.5"))
+
+    linha = next(l for l in resumo.linhas if l.nh == "Nº 5072")
+    assert linha.participacao == Decimal("0.5")
+    assert linha.variavel == (linha.valor_liquido * Decimal("0.5")).quantize(Decimal("0.01"))
+
+
 def test_aliquota_configuravel(cubo, casos):
     linhas_cubo, _ = ler_linhas(cubo, "cubo.xls")
     linhas_casos, _ = ler_linhas(casos, "casos.xlsx")
@@ -287,6 +332,7 @@ def test_planilha_sem_linhas_nao_quebra_o_total(tmp_path):
     vazio = ResumoVariavel(
         linhas=[],
         aliquota=Decimal("0.175"),
+        participacao=Decimal("0.30"),
         total_pago=Decimal("0"),
         total_liquido=Decimal("0"),
         total_variavel=Decimal("0"),

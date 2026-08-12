@@ -27,6 +27,7 @@ export type LinhaVariavel = {
 export type RelatorioVariavel = {
   arquivos: string[];
   aliquota: string;
+  participacao: string;
   periodo_inicio: string | null;
   periodo_fim: string | null;
   total_pago: string;

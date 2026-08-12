@@ -81,6 +81,7 @@ class LinhaVariavelOut(BaseModel):
 class VariavelOut(BaseModel):
     arquivos: list[str]
     aliquota: Decimal
+    participacao: Decimal
     periodo_inicio: dt.date | None
     periodo_fim: dt.date | None
     total_pago: Decimal

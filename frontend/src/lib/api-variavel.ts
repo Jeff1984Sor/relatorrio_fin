@@ -16,11 +16,15 @@ async function mensagemDeErro(resposta: Response): Promise<string> {
   return "Não foi possível concluir a operação. Tente de novo.";
 }
 
-function corpo(cubo: File, casos: File, aliquota: string): FormData {
+export type Parametros = { aliquota: string; participacao: string };
+
+function corpo(cubo: File, casos: File, parametros: Parametros): FormData {
   const dados = new FormData();
   dados.append("cubo", cubo);
   dados.append("casos", casos);
-  if (aliquota.trim()) dados.append("aliquota", aliquota.trim());
+  if (parametros.aliquota.trim()) dados.append("aliquota", parametros.aliquota.trim());
+  if (parametros.participacao.trim())
+    dados.append("participacao", parametros.participacao.trim());
   return dados;
 }
 
@@ -38,18 +42,18 @@ async function postar(caminho: string, dados: FormData): Promise<Response> {
 export async function processarVariavel(
   cubo: File,
   casos: File,
-  aliquota: string,
+  parametros: Parametros,
 ): Promise<RelatorioVariavel> {
-  const resposta = await postar(`${BASE}/processar`, corpo(cubo, casos, aliquota));
+  const resposta = await postar(`${BASE}/processar`, corpo(cubo, casos, parametros));
   return (await resposta.json()) as RelatorioVariavel;
 }
 
 export async function baixarVariavel(
   cubo: File,
   casos: File,
-  aliquota: string,
+  parametros: Parametros,
 ): Promise<void> {
-  const resposta = await postar(`${BASE}/xlsx`, corpo(cubo, casos, aliquota));
+  const resposta = await postar(`${BASE}/xlsx`, corpo(cubo, casos, parametros));
   const blob = await resposta.blob();
 
   const cabecalho = resposta.headers.get("content-disposition") ?? "";

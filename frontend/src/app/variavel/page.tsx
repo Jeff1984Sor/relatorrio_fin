@@ -19,6 +19,7 @@ export default function Pagina() {
   const [cubo, setCubo] = useState<File | null>(null);
   const [casos, setCasos] = useState<File | null>(null);
   const [aliquota, setAliquota] = useState("17,5");
+  const [participacao, setParticipacao] = useState("30");
   const [relatorio, setRelatorio] = useState<RelatorioVariavel | null>(null);
 
   const [processando, setProcessando] = useState(false);
@@ -32,7 +33,7 @@ export default function Pagina() {
     setProcessando(true);
     setErro(null);
     try {
-      setRelatorio(await processarVariavel(cubo, casos, aliquota));
+      setRelatorio(await processarVariavel(cubo, casos, { aliquota, participacao }));
     } catch (excecao) {
       setErro(mensagem(excecao, "Não foi possível gerar o relatório. Tente de novo."));
       setRelatorio(null);
@@ -46,7 +47,7 @@ export default function Pagina() {
     setBaixando(true);
     setErro(null);
     try {
-      await baixarVariavel(cubo, casos, aliquota);
+      await baixarVariavel(cubo, casos, { aliquota, participacao });
     } catch (excecao) {
       setErro(mensagem(excecao, "Não foi possível gerar a planilha. Tente de novo."));
     } finally {
@@ -105,6 +106,23 @@ export default function Pagina() {
               }}
               className="numero w-28 rounded border border-slate-300 px-3 py-2 text-right text-sm focus:border-slate-900 focus:outline-none"
             />
+          </label>
+
+          <label className="text-sm">
+            <span className="mb-1 block font-medium text-slate-700">Participação (%)</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={participacao}
+              onChange={(e) => {
+                setParticipacao(e.target.value);
+                setRelatorio(null);
+              }}
+              className="numero w-28 rounded border border-slate-300 px-3 py-2 text-right text-sm focus:border-slate-900 focus:outline-none"
+            />
+            <span className="mt-1 block text-xs text-slate-500">
+              Vale para todos os casos.
+            </span>
           </label>
 
           <button

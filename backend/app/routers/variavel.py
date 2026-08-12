@@ -40,26 +40,24 @@ async def _linhas(arquivo: UploadFile, rotulo: str) -> list[list[object]]:
     return linhas
 
 
-def _aliquota(bruta: str | None) -> Decimal:
+def _percentual(bruta: str | None, padrao: Decimal, rotulo: str) -> Decimal:
+    """Aceita `17,5`, `17.5`, `0,175` e `17,5%` — tudo vira fração."""
     if bruta is None or str(bruta).strip() == "":
-        return variavel.ALIQUOTA_PADRAO
+        return padrao
     try:
         valor = Decimal(str(bruta).replace("%", "").replace(",", ".").strip())
     except InvalidOperation as exc:
-        raise _erro_422(
-            "A alíquota do imposto está inválida. Informe algo como 17,5."
-        ) from exc
+        raise _erro_422(f"{rotulo} está inválido. Informe algo como 30.") from exc
 
-    # Aceita tanto 17,5 quanto 0,175.
     if valor > 1:
         valor = valor / 100
-    if not (0 <= valor < 1):
-        raise _erro_422("A alíquota do imposto precisa estar entre 0 e 100%.")
+    if not (0 <= valor <= 1):
+        raise _erro_422(f"{rotulo} precisa estar entre 0 e 100%.")
     return valor
 
 
 async def _montar(
-    cubo: UploadFile, casos: UploadFile, aliquota: str | None
+    cubo: UploadFile, casos: UploadFile, aliquota: str | None, participacao: str | None
 ) -> ResumoVariavel:
     linhas_cubo = await _linhas(cubo, "Cubo de recebimentos")
     linhas_casos = await _linhas(casos, "Relatório de casos")
@@ -68,7 +66,10 @@ async def _montar(
         return variavel.montar(
             linhas_cubo,
             linhas_casos,
-            aliquota=_aliquota(aliquota),
+            aliquota=_percentual(aliquota, variavel.ALIQUOTA_PADRAO, "A alíquota do imposto"),
+            participacao=_percentual(
+                participacao, variavel.PARTICIPACAO_PADRAO, "A participação"
+            ),
             arquivos=[cubo.filename or "cubo", casos.filename or "casos"],
         )
     except ArquivoInesperado as exc:
@@ -106,11 +107,13 @@ async def processar(
     cubo: UploadFile = File(..., description="Visão cubo de recebimentos"),
     casos: UploadFile = File(..., description="Relatório de casos"),
     aliquota: str | None = Form(default=None),
+    participacao: str | None = Form(default=None),
 ) -> schemas.VariavelOut:
-    resumo = await _montar(cubo, casos, aliquota)
+    resumo = await _montar(cubo, casos, aliquota, participacao)
     return schemas.VariavelOut(
         arquivos=resumo.arquivos,
         aliquota=resumo.aliquota,
+        participacao=resumo.participacao,
         periodo_inicio=resumo.periodo_inicio,
         periodo_fim=resumo.periodo_fim,
         total_pago=resumo.total_pago,
@@ -127,8 +130,9 @@ async def baixar_xlsx(
     cubo: UploadFile = File(...),
     casos: UploadFile = File(...),
     aliquota: str | None = Form(default=None),
+    participacao: str | None = Form(default=None),
 ) -> StreamingResponse:
-    resumo = await _montar(cubo, casos, aliquota)
+    resumo = await _montar(cubo, casos, aliquota, participacao)
     conteudo = planilha_variavel.gerar_xlsx(resumo)
 
     sufixo = ""

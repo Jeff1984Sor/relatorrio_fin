@@ -25,6 +25,12 @@ from .texto import chave_ordenacao, normalizar
 from .valores import parse_data, parse_valor, texto_celula
 
 ALIQUOTA_PADRAO = Decimal("0.175")
+
+# A participação é a mesma para todo mundo hoje. Fica como parâmetro (e não lida
+# do relatório de casos) porque a coluna de origem vem vazia em parte das
+# exportações — o que zerava a variável sem ninguém perceber.
+PARTICIPACAO_PADRAO = Decimal("0.30")
+
 CENTAVO = Decimal("0.01")
 
 BRANCO = "(blank)"
@@ -127,6 +133,7 @@ class Aviso:
 class ResumoVariavel:
     linhas: list[LinhaVariavel]
     aliquota: Decimal
+    participacao: Decimal
     total_pago: Decimal
     total_liquido: Decimal
     total_variavel: Decimal
@@ -300,6 +307,7 @@ def montar(
     linhas_cubo: list[list[object]],
     linhas_casos: list[list[object]],
     aliquota: Decimal = ALIQUOTA_PADRAO,
+    participacao: Decimal = PARTICIPACAO_PADRAO,
     arquivos: list[str] | None = None,
 ) -> ResumoVariavel:
     casos = ler_casos(linhas_casos)
@@ -337,7 +345,7 @@ def montar(
             # Recebimento sem nenhum caso identificado: entra na tabela para o
             # total bater, mas sem responsável e sem variável.
             resultado.append(
-                _linha(base, None, None, valor_bruto, valor_pago, aliquota, 0, 1)
+                _linha(base, None, None, valor_bruto, valor_pago, aliquota, None, 0, 1)
             )
             continue
 
@@ -360,12 +368,15 @@ def montar(
                     fatias_brutas[indice],
                     fatias_pagas[indice],
                     aliquota,
+                    participacao,
                     len(casos_do_responsavel),
                     sum(pesos),
                 )
             )
 
-    return _resumir(resultado, aliquota, sem_caso, caso_nao_encontrado, rateados, arquivos or [])
+    return _resumir(
+        resultado, aliquota, participacao, sem_caso, caso_nao_encontrado, rateados, arquivos or []
+    )
 
 
 def _linha(
@@ -375,12 +386,15 @@ def _linha(
     valor_bruto: Decimal,
     valor_pago: Decimal,
     aliquota: Decimal,
+    participacao: Decimal | None,
     casos_do_responsavel: int,
     casos_no_recebimento: int,
 ) -> LinhaVariavel:
     impostos = (valor_pago * aliquota).quantize(CENTAVO)
     liquido = valor_pago - impostos
-    participacao = caso.participacao if caso else None
+    # Sem responsável não há a quem pagar: a participação fica em branco.
+    if caso is None:
+        participacao = None
     variavel = (
         (liquido * participacao).quantize(CENTAVO) if participacao is not None else Decimal("0")
     )
@@ -413,6 +427,7 @@ def _linha(
 def _resumir(
     linhas: list[LinhaVariavel],
     aliquota: Decimal,
+    participacao: Decimal,
     sem_caso: list[str],
     caso_nao_encontrado: set[int],
     rateados: list[str],
@@ -465,6 +480,7 @@ def _resumir(
     return ResumoVariavel(
         linhas=linhas,
         aliquota=aliquota,
+        participacao=participacao,
         total_pago=sum((linha.valor_pago for linha in linhas), Decimal("0")),
         total_liquido=sum((linha.valor_liquido for linha in linhas), Decimal("0")),
         total_variavel=sum((linha.variavel for linha in linhas), Decimal("0")),

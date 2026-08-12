@@ -99,6 +99,7 @@ def _titulo(ws: Worksheet, resumo: ResumoVariavel) -> None:
     ws.merge_cells(f"A2:{letra_final}2")
     ws["A2"] = (
         f"{periodo}  •  Imposto {resumo.aliquota * 100:.1f}%  •  "
+        f"Participação {resumo.participacao * 100:.1f}%  •  "
         f"{len(resumo.linhas)} linhas  •  Gerado em "
         f"{dt.datetime.now().strftime('%d/%m/%Y %H:%M')}"
     )
