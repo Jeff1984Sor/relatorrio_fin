@@ -54,6 +54,43 @@ class CategoriaOut(SubcategoriaOut):
     subcategorias: list[SubcategoriaOut]
 
 
+class LinhaVariavelOut(BaseModel):
+    grupo: str
+    pagador: str
+    cliente: str
+    nh: str
+    nf: str
+    situacao: str
+    data_vencimento: dt.date | None
+    data_pagamento: dt.date | None
+    numero_do_caso: int | None
+    titulo: str
+    area: str
+    responsavel: str
+    valor_bruto: Decimal
+    valor_pago: Decimal
+    aliquota: Decimal
+    valor_dos_impostos: Decimal
+    valor_liquido: Decimal
+    participacao: Decimal | None
+    variavel: Decimal
+    casos_do_responsavel: int
+    casos_no_recebimento: int
+
+
+class VariavelOut(BaseModel):
+    arquivos: list[str]
+    aliquota: Decimal
+    periodo_inicio: dt.date | None
+    periodo_fim: dt.date | None
+    total_pago: Decimal
+    total_liquido: Decimal
+    total_variavel: Decimal
+    por_responsavel: dict[str, Decimal]
+    linhas: list[LinhaVariavelOut]
+    avisos: list[AvisoOut]
+
+
 class ResumoOut(BaseModel):
     arquivos: list[str]
     periodo_inicio: dt.date | None

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import csv
 import io
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pandas as pd
 
 from .. import config
+from . import spreadsheetml
 
 
 class ArquivoIlegivel(Exception):
@@ -52,6 +54,13 @@ def listar_abas(conteudo: bytes, nome_arquivo: str) -> list[str]:
     ext = extensao(nome_arquivo)
     if ext == ".csv":
         return ["CSV"]
+    # O sistema exporta SpreadsheetML (XML) com extensão .xls; nenhuma biblioteca
+    # de planilha abre isso, então o parser próprio entra antes do pandas.
+    if spreadsheetml.parece_spreadsheetml(conteudo):
+        try:
+            return spreadsheetml.listar_abas(conteudo)
+        except ET.ParseError as exc:
+            raise ArquivoIlegivel(MSG_GENERICA) from exc
     try:
         arquivo = pd.ExcelFile(io.BytesIO(conteudo), engine=_motor_excel(ext))
         return [str(nome) for nome in arquivo.sheet_names]
@@ -92,6 +101,12 @@ def ler_linhas(
 
     if ext == ".csv":
         return _ler_csv(conteudo), "CSV"
+
+    if spreadsheetml.parece_spreadsheetml(conteudo):
+        try:
+            return spreadsheetml.ler(conteudo, aba)
+        except ET.ParseError as exc:
+            raise ArquivoIlegivel(MSG_GENERICA) from exc
 
     try:
         alvo = aba if aba else 0

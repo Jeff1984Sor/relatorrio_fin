@@ -1,164 +1,59 @@
-"use client";
+import Link from "next/link";
 
-import { useState } from "react";
-
-import Avisos from "@/components/Avisos";
-import Bloco from "@/components/Bloco";
-import BlocoColunas from "@/components/BlocoColunas";
-import Dropzone from "@/components/Dropzone";
-import TabelaResumo from "@/components/TabelaResumo";
-import { baixarXlsx, ErroApi, inspecionar, processar } from "@/lib/api";
-import { descreverPeriodo } from "@/lib/formato";
-import type { Inspecao, Mapeamento, Resumo } from "@/lib/tipos";
-
-function mensagem(excecao: unknown, padrao: string): string {
-  return excecao instanceof ErroApi ? excecao.message : padrao;
-}
+const RELATORIOS = [
+  {
+    href: "/despesas",
+    titulo: "Despesas por categoria",
+    descricao:
+      "Consolida uma ou várias planilhas de despesas por categoria e subcategoria, com coluna por conta bancária.",
+    entrada: "Analítico de despesas ou fluxo de caixa",
+    saida: "Resumo por categoria em .xlsx",
+  },
+  {
+    href: "/variavel",
+    titulo: "Remuneração variável",
+    descricao:
+      "Cruza os recebimentos do período com os casos e calcula a variável de cada responsável, já com o imposto descontado.",
+    entrada: "Visão cubo de recebimentos + relatório de casos",
+    saida: "Relatório de variável em .xlsx",
+  },
+];
 
 export default function Pagina() {
-  const [arquivos, setArquivos] = useState<File[]>([]);
-  const [inspecao, setInspecao] = useState<Inspecao | null>(null);
-  const [mapeamento, setMapeamento] = useState<Mapeamento | null>(null);
-  const [resumo, setResumo] = useState<Resumo | null>(null);
-
-  const [lendo, setLendo] = useState(false);
-  const [processando, setProcessando] = useState(false);
-  const [baixando, setBaixando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-
-  async function reinspecionar(lista: File[]) {
-    setArquivos(lista);
-    setInspecao(null);
-    setMapeamento(null);
-    setResumo(null);
-    setErro(null);
-
-    if (lista.length === 0) return;
-
-    setLendo(true);
-    try {
-      const lido = await inspecionar(lista);
-      setInspecao(lido);
-      setMapeamento(lido.arquivos[0].mapeamento);
-    } catch (excecao) {
-      setErro(mensagem(excecao, "Não foi possível ler os arquivos."));
-    } finally {
-      setLendo(false);
-    }
-  }
-
-  function aoEscolher(novos: File[]) {
-    // Mesmo nome e mesmo tamanho: o usuário selecionou o arquivo duas vezes.
-    const existentes = new Set(arquivos.map((a) => `${a.name}:${a.size}`));
-    const ineditos = novos.filter((a) => !existentes.has(`${a.name}:${a.size}`));
-    reinspecionar([...arquivos, ...ineditos]);
-  }
-
-  function aoRemover(indice: number) {
-    reinspecionar(arquivos.filter((_, i) => i !== indice));
-  }
-
-  const mapaParaEnvio = () =>
-    mapeamento ? (mapeamento as unknown as Record<string, number | null>) : null;
-
-  async function aoProcessar() {
-    if (!arquivos.length || !mapeamento) return;
-    setProcessando(true);
-    setErro(null);
-    try {
-      setResumo(await processar(arquivos, mapaParaEnvio()));
-    } catch (excecao) {
-      setErro(mensagem(excecao, "Não foi possível consolidar as planilhas. Tente de novo."));
-    } finally {
-      setProcessando(false);
-    }
-  }
-
-  async function aoBaixar() {
-    if (!arquivos.length || !mapeamento) return;
-    setBaixando(true);
-    setErro(null);
-    try {
-      await baixarXlsx(arquivos, mapaParaEnvio());
-    } catch (excecao) {
-      setErro(mensagem(excecao, "Não foi possível gerar a planilha. Tente de novo."));
-    } finally {
-      setBaixando(false);
-    }
-  }
-
   return (
     <div>
-      <h1 className="mb-2 text-xl font-semibold text-slate-900">
-        Consolidar despesas por categoria
-      </h1>
+      <h1 className="mb-2 text-xl font-semibold text-slate-900">Qual relatório você precisa?</h1>
       <p className="mb-8 text-sm text-slate-600">
-        Suba uma ou várias planilhas de despesas e baixe um resumo único, pronto para a
-        diretoria.
+        Escolha o relatório, suba as planilhas e baixe o resultado pronto.
       </p>
 
-      {erro && (
-        <div className="mb-6 rounded border border-negativo/30 bg-rose-50 px-4 py-3 text-sm text-negativo">
-          {erro}
-        </div>
-      )}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {RELATORIOS.map((relatorio) => (
+          <Link
+            key={relatorio.href}
+            href={relatorio.href}
+            className="group flex flex-col rounded-lg border border-slate-200 bg-white p-6 transition hover:border-slate-900 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+          >
+            <h2 className="text-base font-semibold text-slate-900">{relatorio.titulo}</h2>
+            <p className="mt-2 flex-1 text-sm text-slate-600">{relatorio.descricao}</p>
 
-      <Bloco
-        numero={1}
-        titulo="Arquivos"
-        descricao="Planilhas de despesas pagas. Pode subir várias de uma vez."
-      >
-        <Dropzone
-          arquivos={arquivos}
-          carregando={lendo}
-          onEscolher={aoEscolher}
-          onRemover={aoRemover}
-        />
-      </Bloco>
+            <dl className="mt-4 space-y-1 border-t border-slate-100 pt-4 text-xs text-slate-500">
+              <div className="flex gap-2">
+                <dt className="shrink-0 font-medium">Você sobe:</dt>
+                <dd>{relatorio.entrada}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="shrink-0 font-medium">Você baixa:</dt>
+                <dd>{relatorio.saida}</dd>
+              </div>
+            </dl>
 
-      {inspecao && mapeamento && (
-        <Bloco
-          numero={2}
-          titulo="Colunas"
-          descricao={
-            inspecao.arquivos[0].linha_cabecalho !== null
-              ? `Cabeçalho encontrado na linha ${inspecao.arquivos[0].linha_cabecalho + 1}. Confira o que foi detectado e ajuste se precisar.`
-              : "Confira o que foi detectado e ajuste se precisar."
-          }
-        >
-          <BlocoColunas
-            arquivo={inspecao.arquivos[0]}
-            qtdArquivos={inspecao.arquivos.length}
-            mapeamento={mapeamento}
-            processando={processando}
-            onMapeamento={setMapeamento}
-            onProcessar={aoProcessar}
-          />
-        </Bloco>
-      )}
-
-      {resumo && (
-        <Bloco
-          numero={3}
-          titulo="Resumo"
-          descricao={`${descreverPeriodo(resumo.periodo_inicio, resumo.periodo_fim)} — ${resumo.qtd_lancamentos} lançamentos${
-            resumo.arquivos.length > 1 ? ` de ${resumo.arquivos.length} planilhas` : ""
-          }`}
-        >
-          <TabelaResumo resumo={resumo} />
-          <Avisos avisos={resumo.avisos} />
-          <div className="mt-6">
-            <button
-              type="button"
-              onClick={aoBaixar}
-              disabled={baixando}
-              className="rounded bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              {baixando ? "Gerando a planilha…" : "Baixar planilha consolidada"}
-            </button>
-          </div>
-        </Bloco>
-      )}
+            <span className="mt-4 text-sm font-medium text-slate-900 group-hover:underline">
+              Abrir →
+            </span>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }

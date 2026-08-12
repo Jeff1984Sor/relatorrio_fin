@@ -1,4 +1,16 @@
-# Relatório Fin — Agrupador de Despesas por Categoria
+# Relatório Fin — Relatórios do escritório
+
+Dois relatórios, na mesma página inicial. A pessoa escolhe qual quer, sobe as
+planilhas e baixa o resultado pronto.
+
+| Relatório | Rota | Entrada | Saída |
+|---|---|---|---|
+| Despesas por categoria | `/despesas` | analítico de despesas ou fluxo de caixa (1 ou vários) | resumo por categoria |
+| Remuneração variável | `/variavel` | visão cubo de recebimentos + relatório de casos | variável por responsável |
+
+---
+
+## Despesas por categoria
 
 Sobe a planilha analítica de despesas exportada do sistema de gestão e devolve o
 consolidado por categoria e subcategoria, pronto para a diretoria.
@@ -85,6 +97,44 @@ a consolidação leva milissegundos.
 
 Erro de leitura devolve `422` com mensagem em português dizendo o que fazer —
 nunca um traceback.
+
+---
+
+## Remuneração variável
+
+Cruza o cubo de recebimentos com o relatório de casos e calcula, por lançamento:
+
+```
+Valor dos Impostos = Valor Pago × alíquota        (padrão 17,5%, ajustável na tela)
+Valor Líquido      = Valor Pago − Valor dos Impostos
+Variável           = Valor Líquido × Participação do responsável
+```
+
+**Uma linha por recebimento e responsável — o NH nunca se repete para a mesma
+pessoa.** Quando um recebimento cobre vários casos, o valor é dividido entre os
+responsáveis na proporção de casos de cada um: quem tem 29 dos 33 casos leva
+29/33. O rateio é feito em centavos exatos, então a soma das linhas é sempre
+igual ao valor recebido — nenhum centavo é criado nem perdido.
+
+Recebimentos sem caso vinculado entram na tabela sem responsável e com variável
+zerada, para o total continuar batendo com o cubo. Eles aparecem nos avisos.
+
+### O formato do cubo
+
+O sistema exporta a visão cubo como **SpreadsheetML 2003** — XML com extensão
+`.xls`, que nem o Excel-padrão das bibliotecas abre. Daí o leitor próprio em
+`services/spreadsheetml.py`. O arquivo ainda tem três armadilhas:
+
+- **sem linha de cabeçalho** — as colunas vêm na ordem fixa do sistema;
+- **valores em texto**, no formato `valor: 3000.00`;
+- **células mescladas verticalmente** quando um recebimento cobre vários casos:
+  o recebimento aparece uma vez só e os casos descem em linhas próprias. O
+  parser resolve as mesclas e preenche as linhas de baixo.
+
+A coluna **Área** do relatório de casos é opcional: sem ela, o relatório sai com
+a coluna em branco em vez de falhar.
+
+---
 
 ## Decisões que valem saber
 

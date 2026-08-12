@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from . import config
-from .routers import despesas
+from .routers import despesas, variavel
 
 logger = logging.getLogger("relatorio_fin")
 
@@ -48,3 +48,4 @@ def saude() -> dict:
 
 
 app.include_router(despesas.router)
+app.include_router(variavel.router)
